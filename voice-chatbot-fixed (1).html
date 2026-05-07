@@ -1,0 +1,1785 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gemini Voice Chat</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Outfit:wght@200;300;400;500;600;700&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --ink: #0a0c10;
+  --paper: #f4f1eb;
+  --paper2: #ede9e0;
+  --line: rgba(10,12,16,.1);
+  --accent: #e8533a;
+  --accent2: #3a7ce8;
+  --gold: #c9922a;
+  --muted: #8a8478;
+  --soft: #5a5650;
+  --bubble-ai: #fff;
+  --bubble-user: #0a0c10;
+  --r: 16px;
+}
+
+html, body { height: 100%; overflow: hidden; }
+
+body {
+  font-family: 'Outfit', sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ═══ NOISE TEXTURE ═══ */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+  opacity: .4;
+}
+
+/* ═══ SETUP ═══ */
+#setup {
+  position: fixed; inset: 0;
+  background: var(--paper);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100; padding: 24px;
+}
+
+.setup-inner {
+  width: 100%; max-width: 420px;
+  animation: rise .7s cubic-bezier(.22,1,.36,1);
+}
+
+@keyframes rise { from { opacity:0; transform:translateY(32px); } to { opacity:1; transform:none; } }
+
+.setup-eyebrow {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px; font-weight: 500;
+  letter-spacing: 2px; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 14px;
+}
+
+.setup-title {
+  font-size: 42px; font-weight: 200; line-height: 1.1;
+  margin-bottom: 6px; letter-spacing: -1px;
+}
+
+.setup-title strong { font-weight: 700; color: var(--accent); }
+
+.setup-sub {
+  font-size: 14px; color: var(--muted); margin-bottom: 36px; line-height: 1.6;
+}
+
+.setup-divider {
+  height: 1px; background: var(--line); margin-bottom: 28px;
+}
+
+.field-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 8px;
+}
+
+.field-wrap { position: relative; margin-bottom: 20px; }
+
+.field-input {
+  width: 100%; border: 1.5px solid var(--line);
+  border-radius: 10px; padding: 13px 44px 13px 16px;
+  background: var(--bubble-ai); color: var(--ink);
+  font-family: 'DM Mono', monospace; font-size: 13px;
+  outline: none; transition: border-color .2s, box-shadow .2s;
+}
+
+.field-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(232,83,58,.1);
+}
+
+.field-input::placeholder { color: var(--muted); }
+
+.eye-toggle {
+  position: absolute; right: 13px; top: 50%;
+  transform: translateY(-50%);
+  background: none; border: none; cursor: pointer;
+  color: var(--muted); font-size: 16px; padding: 4px;
+  transition: color .2s;
+}
+.eye-toggle:hover { color: var(--ink); }
+
+/* Voice selector */
+.voice-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 8px; margin-bottom: 24px;
+}
+
+.voice-opt {
+  border: 1.5px solid var(--line);
+  border-radius: 10px; padding: 11px 14px;
+  cursor: pointer; transition: all .2s;
+  background: var(--bubble-ai);
+}
+
+.voice-opt:hover { border-color: var(--accent2); }
+.voice-opt.selected { border-color: var(--accent); background: rgba(232,83,58,.06); }
+
+.vo-name {
+  font-size: 13px; font-weight: 600; margin-bottom: 2px;
+}
+.vo-desc { font-size: 11px; color: var(--muted); }
+
+.go-btn {
+  width: 100%; background: var(--ink);
+  border: none; border-radius: 10px; padding: 15px;
+  color: var(--paper); font-family: 'Outfit', sans-serif;
+  font-size: 15px; font-weight: 600; cursor: pointer;
+  transition: transform .15s, box-shadow .2s, background .2s;
+  position: relative; overflow: hidden;
+}
+
+.go-btn::before {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,.08), transparent);
+}
+
+.go-btn:hover {
+  background: #1a1e25;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(10,12,16,.2);
+}
+
+.setup-err {
+  color: var(--accent); font-size: 12px;
+  margin-top: 10px; text-align: center; display: none;
+}
+
+/* ═══ APP LAYOUT ═══ */
+#app { display: flex; flex-direction: column; height: 100vh; position: relative; z-index: 1; }
+
+/* HEADER */
+header {
+  border-bottom: 1px solid var(--line);
+  padding: 0 24px; height: 58px;
+  display: flex; align-items: center; justify-content: space-between;
+  flex-shrink: 0; background: rgba(244,241,235,.92);
+  backdrop-filter: blur(12px);
+  position: relative; z-index: 10;
+}
+
+.header-left { display: flex; align-items: center; gap: 14px; }
+
+.header-logo {
+  width: 34px; height: 34px;
+  background: var(--ink); border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; color: var(--paper);
+  flex-shrink: 0;
+}
+
+.header-name {
+  font-size: 15px; font-weight: 600; letter-spacing: -.3px;
+}
+
+.header-model {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px; color: var(--muted); margin-top: 1px;
+}
+
+.header-right { display: flex; align-items: center; gap: 10px; }
+
+.status-pill {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--paper2); border: 1px solid var(--line);
+  border-radius: 20px; padding: 5px 12px;
+  font-size: 11px; font-weight: 500; color: var(--soft);
+  font-family: 'DM Mono', monospace; letter-spacing: .3px;
+}
+
+.status-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #4CAF50; box-shadow: 0 0 6px #4CAF50;
+}
+
+.status-dot.busy { background: var(--gold); box-shadow: 0 0 6px var(--gold); animation: pulse-dot 1s infinite; }
+.status-dot.speaking { background: var(--accent2); box-shadow: 0 0 6px var(--accent2); animation: pulse-dot .8s infinite; }
+.status-dot.listening { background: var(--accent); box-shadow: 0 0 6px var(--accent); animation: pulse-dot .6s infinite; }
+
+@keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+.clear-btn {
+  background: none; border: 1px solid var(--line);
+  border-radius: 8px; padding: 6px 14px;
+  font-family: 'Outfit', sans-serif; font-size: 12px;
+  color: var(--muted); cursor: pointer; transition: all .2s;
+}
+.clear-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ═══ CHAT AREA ═══ */
+#chat-area {
+  flex: 1; overflow-y: auto; padding: 32px 20px;
+  display: flex; flex-direction: column; gap: 20px;
+  scroll-behavior: smooth;
+}
+
+#chat-area::-webkit-scrollbar { width: 4px; }
+#chat-area::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+
+/* Welcome */
+.welcome {
+  display: flex; flex-direction: column; align-items: center;
+  text-align: center; padding: 60px 20px;
+  max-width: 500px; margin: 0 auto; gap: 14px;
+  animation: rise .6s ease both;
+}
+
+.welcome-icon {
+  width: 80px; height: 80px;
+  background: var(--ink); border-radius: 24px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 40px; margin-bottom: 10px;
+  box-shadow: 0 20px 40px rgba(10,12,16,.15);
+}
+
+.welcome h2 {
+  font-size: 26px; font-weight: 300; letter-spacing: -.5px;
+  line-height: 1.25;
+}
+
+.welcome h2 strong { font-weight: 700; }
+
+.welcome p {
+  color: var(--muted); font-size: 14px; line-height: 1.7;
+  max-width: 360px;
+}
+
+.quick-tips {
+  display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
+  margin-top: 8px;
+}
+
+.tip {
+  background: var(--bubble-ai); border: 1px solid var(--line);
+  border-radius: 20px; padding: 6px 14px;
+  font-size: 12px; color: var(--soft); cursor: pointer;
+  transition: all .2s;
+}
+.tip:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Messages */
+.msg-row {
+  display: flex; align-items: flex-end; gap: 10px;
+  max-width: 720px; width: 100%; margin: 0 auto;
+  animation: msgIn .35s cubic-bezier(.22,1,.36,1) both;
+}
+
+@keyframes msgIn { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:none} }
+
+.msg-row.user { flex-direction: row-reverse; }
+
+.av {
+  width: 32px; height: 32px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; flex-shrink: 0;
+}
+
+.av.ai-av { background: var(--ink); color: var(--paper); }
+.av.user-av { background: var(--paper2); border: 1.5px solid var(--line); color: var(--soft); }
+
+.bubble {
+  max-width: calc(100% - 80px);
+  padding: 12px 16px; border-radius: 18px;
+  line-height: 1.7; font-size: 14.5px; word-break: break-word;
+  position: relative;
+}
+
+.msg-row.ai .bubble {
+  background: var(--bubble-ai);
+  border: 1.5px solid var(--line);
+  border-bottom-left-radius: 4px;
+  box-shadow: 0 2px 12px rgba(10,12,16,.06);
+}
+
+.msg-row.user .bubble {
+  background: var(--bubble-user);
+  color: var(--paper);
+  border-bottom-right-radius: 4px;
+  box-shadow: 0 2px 12px rgba(10,12,16,.15);
+}
+
+/* Audio play button on AI message */
+.play-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: var(--paper2); border: 1px solid var(--line);
+  border-radius: 8px; padding: 5px 10px;
+  font-size: 11px; color: var(--soft); cursor: pointer;
+  margin-top: 8px; font-family: 'DM Mono', monospace;
+  transition: all .2s;
+}
+
+.play-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+.play-btn.playing { border-color: var(--accent2); color: var(--accent2); background: rgba(58,124,232,.06); }
+
+/* Waveform visual */
+.waveform {
+  display: flex; align-items: center; gap: 3px; height: 24px;
+  margin-top: 8px;
+}
+
+.waveform.hidden { display: none; }
+
+.wave-bar {
+  width: 3px; border-radius: 2px; background: var(--accent2);
+  animation: wave-anim 1.2s ease-in-out infinite;
+}
+
+.wave-bar:nth-child(2) { animation-delay: .1s; }
+.wave-bar:nth-child(3) { animation-delay: .2s; }
+.wave-bar:nth-child(4) { animation-delay: .3s; }
+.wave-bar:nth-child(5) { animation-delay: .4s; }
+.wave-bar:nth-child(6) { animation-delay: .3s; }
+.wave-bar:nth-child(7) { animation-delay: .2s; }
+.wave-bar:nth-child(8) { animation-delay: .1s; }
+
+@keyframes wave-anim {
+  0%,100%{height:4px; opacity:.4}
+  50%{height:20px; opacity:1}
+}
+
+/* Typing indicator */
+.typing-row {
+  display: flex; align-items: flex-end; gap: 10px;
+  max-width: 720px; width: 100%; margin: 0 auto;
+}
+
+.typing-bub {
+  background: var(--bubble-ai); border: 1.5px solid var(--line);
+  border-radius: 18px; border-bottom-left-radius: 4px;
+  padding: 14px 18px;
+  display: flex; flex-direction: column; gap: 6px;
+  box-shadow: 0 2px 12px rgba(10,12,16,.06);
+}
+
+.dots-row { display: flex; gap: 5px; }
+.dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--muted); animation: dotb 1.4s infinite;
+}
+.dot:nth-child(2) { animation-delay: .2s; }
+.dot:nth-child(3) { animation-delay: .4s; }
+@keyframes dotb { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-8px)} }
+
+.typing-status {
+  font-size: 10px; font-family: 'DM Mono', monospace;
+  color: var(--muted); letter-spacing: .5px;
+}
+
+/* ═══ MIC SECTION ═══ */
+#mic-section {
+  flex-shrink: 0;
+  background: rgba(244,241,235,.95); backdrop-filter: blur(12px);
+  border-top: 1px solid var(--line);
+  padding: 20px;
+}
+
+.mic-inner { max-width: 720px; margin: 0 auto; }
+
+/* Live transcript bar */
+#live-bar {
+  background: var(--bubble-ai); border: 1.5px solid var(--line);
+  border-radius: 12px; padding: 10px 16px;
+  font-size: 14px; color: var(--soft); font-style: italic;
+  min-height: 44px; display: flex; align-items: center;
+  margin-bottom: 14px; transition: border-color .2s;
+  display: none;
+}
+
+#live-bar.active {
+  display: flex;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(232,83,58,.08);
+}
+
+.live-cursor {
+  display: inline-block; width: 2px; height: 16px;
+  background: var(--accent); margin-left: 4px; border-radius: 1px;
+  animation: blink-cur .8s infinite;
+}
+
+@keyframes blink-cur { 0%,100%{opacity:1} 50%{opacity:0} }
+
+/* Controls row */
+.ctrl-row {
+  display: flex; align-items: center; gap: 12px;
+}
+
+/* MIC BUTTON */
+#mic-btn {
+  width: 58px; height: 58px;
+  border-radius: 50%; border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; flex-shrink: 0;
+  transition: transform .15s, box-shadow .2s, background .2s;
+  background: var(--ink); color: var(--paper);
+  box-shadow: 0 4px 16px rgba(10,12,16,.2);
+  position: relative;
+}
+
+#mic-btn:hover { transform: scale(1.06); }
+#mic-btn:active { transform: scale(.96); }
+
+#mic-btn.listening {
+  background: var(--accent);
+  box-shadow: 0 4px 16px rgba(232,83,58,.4), 0 0 0 0 rgba(232,83,58,.3);
+  animation: mic-ring 1.5s infinite;
+}
+
+@keyframes mic-ring {
+  0%{box-shadow:0 4px 16px rgba(232,83,58,.4),0 0 0 0 rgba(232,83,58,.3)}
+  70%{box-shadow:0 4px 16px rgba(232,83,58,.4),0 0 0 20px rgba(232,83,58,0)}
+  100%{box-shadow:0 4px 16px rgba(232,83,58,.4),0 0 0 0 rgba(232,83,58,0)}
+}
+
+#mic-btn.speaking {
+  background: var(--accent2);
+  box-shadow: 0 4px 16px rgba(58,124,232,.4);
+}
+
+#mic-btn.processing {
+  background: var(--gold);
+  box-shadow: 0 4px 16px rgba(201,146,42,.3);
+}
+
+#mic-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+/* Text input fallback */
+.text-input-wrap {
+  flex: 1; position: relative;
+}
+
+#text-input {
+  width: 100%; background: var(--bubble-ai);
+  border: 1.5px solid var(--line); border-radius: 12px;
+  padding: 12px 46px 12px 16px; color: var(--ink);
+  font-family: 'Outfit', sans-serif; font-size: 14px;
+  outline: none; transition: border-color .2s, box-shadow .2s;
+  resize: none; min-height: 46px; max-height: 120px;
+  line-height: 1.5;
+}
+
+#text-input:focus {
+  border-color: var(--accent2);
+  box-shadow: 0 0 0 3px rgba(58,124,232,.08);
+}
+
+#text-input::placeholder { color: var(--muted); }
+
+.send-btn {
+  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+  width: 32px; height: 32px; border-radius: 8px;
+  background: var(--ink); border: none; color: var(--paper);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 13px;
+  transition: transform .15s, background .2s;
+}
+
+.send-btn:hover { background: #1a1e25; }
+.send-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+/* Mic hint */
+.mic-hint {
+  text-align: center; font-size: 11px; color: var(--muted);
+  font-family: 'DM Mono', monospace; letter-spacing: .3px;
+  margin-top: 12px;
+}
+
+/* Vol visualizer ring around mic */
+#vol-ring {
+  position: absolute; inset: -6px;
+  border-radius: 50%; border: 2px solid transparent;
+  background: linear-gradient(var(--paper),var(--paper)) padding-box,
+    linear-gradient(135deg,var(--accent),transparent) border-box;
+  opacity: 0; transition: opacity .3s;
+  pointer-events: none;
+}
+
+#vol-ring.active { opacity: 1; }
+
+/* Error message */
+.err-msg {
+  background: rgba(232,83,58,.08); border: 1.5px solid rgba(232,83,58,.2);
+  border-radius: 12px; padding: 12px 16px; font-size: 13px;
+  color: var(--accent); line-height: 1.6;
+}
+
+/* Lightbox */
+#stop-btn {
+  background: none; border: 1.5px solid var(--line);
+  border-radius: 10px; padding: 10px 18px;
+  font-family: 'Outfit', sans-serif; font-size: 13px;
+  color: var(--soft); cursor: pointer; transition: all .2s;
+  flex-shrink: 0; display: none;
+}
+
+#stop-btn.show { display: block; }
+#stop-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Voice model selector in header */
+.model-badge {
+  background: var(--paper2); border: 1px solid var(--line);
+  border-radius: 8px; padding: 4px 10px;
+  font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted);
+  cursor: pointer; transition: all .2s;
+}
+.model-badge:hover { border-color: var(--accent2); color: var(--accent2); }
+
+/* ═══ MODEL SELECTOR PANEL ═══ */
+.model-section { margin-bottom: 24px; }
+
+.model-tabs {
+  display: flex; gap: 6px; margin-bottom: 12px;
+}
+.model-tab {
+  flex: 1; padding: 8px 12px; border-radius: 8px;
+  border: 1.5px solid var(--line); background: var(--bubble-ai);
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  letter-spacing: 1px; text-transform: uppercase; color: var(--muted);
+  cursor: pointer; transition: all .2s; text-align: center;
+}
+.model-tab.active {
+  border-color: var(--accent2); color: var(--accent2);
+  background: rgba(58,124,232,.06);
+}
+
+.model-list { display: flex; flex-direction: column; gap: 6px; }
+
+.model-opt {
+  border: 1.5px solid var(--line); border-radius: 10px;
+  padding: 10px 14px; cursor: pointer; transition: all .2s;
+  background: var(--bubble-ai); display: flex; align-items: center; gap: 12px;
+}
+.model-opt:hover { border-color: var(--accent2); }
+.model-opt.selected { border-color: var(--accent); background: rgba(232,83,58,.05); }
+
+.model-opt-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  border: 2px solid var(--line); flex-shrink: 0; transition: all .2s;
+}
+.model-opt.selected .model-opt-dot {
+  background: var(--accent); border-color: var(--accent);
+  box-shadow: 0 0 6px rgba(232,83,58,.4);
+}
+
+.model-opt-info { flex: 1; min-width: 0; }
+.model-opt-name { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+.model-opt-desc { font-size: 11px; color: var(--muted); }
+
+.model-badge-pill {
+  font-family: 'DM Mono', monospace; font-size: 9px;
+  padding: 2px 7px; border-radius: 20px; letter-spacing: .5px;
+  flex-shrink: 0;
+}
+.badge-live { background: rgba(58,124,232,.1); color: var(--accent2); border: 1px solid rgba(58,124,232,.2); }
+.badge-fast { background: rgba(201,146,42,.1); color: var(--gold); border: 1px solid rgba(201,146,42,.2); }
+.badge-free { background: rgba(76,175,80,.1); color: #4CAF50; border: 1px solid rgba(76,175,80,.2); }
+.badge-new  { background: rgba(156,39,176,.1); color: #9C27B0; border: 1px solid rgba(156,39,176,.2); }
+
+/* Header model selector dropdown */
+.hdr-model-btn {
+  background: var(--paper2); border: 1px solid var(--line);
+  border-radius: 8px; padding: 5px 10px 5px 10px;
+  font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted);
+  cursor: pointer; transition: all .2s; display: flex; align-items: center; gap: 5px;
+  white-space: nowrap; max-width: 200px; overflow: hidden;
+}
+.hdr-model-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+.hdr-model-btn span { overflow: hidden; text-overflow: ellipsis; }
+
+/* Modal overlay for model picker */
+.model-modal-overlay {
+  position: fixed; inset: 0; background: rgba(10,12,16,.4);
+  backdrop-filter: blur(4px); z-index: 200;
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 80px 20px 20px; animation: fadeIn .2s ease;
+}
+.model-modal-overlay.hidden { display: none; }
+@keyframes fadeIn { from{opacity:0} to{opacity:1} }
+
+.model-modal {
+  background: var(--paper); border: 1px solid var(--line);
+  border-radius: 18px; padding: 24px; width: 100%; max-width: 460px;
+  box-shadow: 0 24px 60px rgba(10,12,16,.2);
+  animation: rise .3s cubic-bezier(.22,1,.36,1);
+  max-height: calc(100vh - 120px); overflow-y: auto;
+}
+.model-modal-title {
+  font-size: 16px; font-weight: 600; margin-bottom: 4px; letter-spacing: -.3px;
+}
+.model-modal-sub {
+  font-size: 12px; color: var(--muted); margin-bottom: 20px;
+}
+.model-modal-close {
+  position: absolute; top: 16px; right: 16px;
+  background: none; border: 1px solid var(--line); border-radius: 8px;
+  padding: 6px 10px; cursor: pointer; color: var(--muted); font-size: 12px;
+}
+
+@media(max-width:580px){
+  .setup-title { font-size:32px; }
+  .voice-grid { grid-template-columns:1fr; }
+  header { padding:0 14px; }
+  .header-name { font-size:14px; }
+  #chat-area { padding:20px 12px; }
+  .bubble { max-width:calc(100% - 56px); font-size:14px; }
+  #mic-section { padding:14px; }
+  .hdr-model-btn { max-width: 130px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ SETUP ═══ -->
+<div id="setup">
+  <div class="setup-inner">
+    <div class="setup-eyebrow">Gemini Voice Assistant</div>
+    <div class="setup-title">Nói chuyện<br>với <strong>Gemini</strong></div>
+    <div class="setup-sub">Chat bằng giọng nói · AI suy nghĩ · Trả lời bằng voice</div>
+    <div class="setup-divider"></div>
+
+    <div class="field-label">Gemini API Key</div>
+    <div class="field-wrap">
+      <input type="password" class="field-input" id="api-key"
+        placeholder="AIzaSy..." autocomplete="off"
+        onkeydown="if(event.key==='Enter') startApp()">
+      <button class="eye-toggle" onclick="toggleEye()" id="eye-btn">👁️</button>
+    </div>
+
+    <div class="field-label">Chọn giọng nói</div>
+    <div class="voice-grid" id="voice-grid">
+      <div class="voice-opt selected" data-voice="Aoede" onclick="selectVoice(this)">
+        <div class="vo-name">Aoede</div>
+        <div class="vo-desc">Nữ · Nhẹ nhàng, rõ ràng</div>
+      </div>
+      <div class="voice-opt" data-voice="Charon" onclick="selectVoice(this)">
+        <div class="vo-name">Charon</div>
+        <div class="vo-desc">Nam · Trầm ấm, chuyên nghiệp</div>
+      </div>
+      <div class="voice-opt" data-voice="Kore" onclick="selectVoice(this)">
+        <div class="vo-name">Kore</div>
+        <div class="vo-desc">Nữ · Tự nhiên, thân thiện</div>
+      </div>
+      <div class="voice-opt" data-voice="Fenrir" onclick="selectVoice(this)">
+        <div class="vo-name">Fenrir</div>
+        <div class="vo-desc">Nam · Mạnh mẽ, rõ ràng</div>
+      </div>
+      <div class="voice-opt" data-voice="Puck" onclick="selectVoice(this)">
+        <div class="vo-name">Puck</div>
+        <div class="vo-desc">Nam · Trẻ trung, nhanh</div>
+      </div>
+      <div class="voice-opt" data-voice="Leda" onclick="selectVoice(this)">
+        <div class="vo-name">Leda</div>
+        <div class="vo-desc">Nữ · Dịu dàng, tinh tế</div>
+      </div>
+    </div>
+
+    <div class="field-label">Chọn model Chat & Voice</div>
+    <div class="model-section">
+      <div class="model-tabs">
+        <div class="model-tab active" id="tab-voice" onclick="switchModelTab('voice')">🎙️ Voice</div>
+        <div class="model-tab" id="tab-chat" onclick="switchModelTab('chat')">💬 Chat</div>
+      </div>
+
+      <!-- Voice model list -->
+      <div class="model-list" id="voice-model-list">
+        <div class="model-opt selected" data-model="gemini-3.1-flash-live-preview" data-type="live" onclick="selectModel(this,'voice')">
+          <div class="model-opt-dot"></div>
+          <div class="model-opt-info">
+            <div class="model-opt-name">Gemini 3 Flash Live</div>
+            <div class="model-opt-desc">Giọng nói thật · Độ trễ cực thấp · WebSocket</div>
+          </div>
+          <span class="model-badge-pill badge-live">LIVE</span>
+        </div>
+        <div class="model-opt" data-model="gemini-2.5-flash-native-audio-preview-12-2025" data-type="live" onclick="selectModel(this,'voice')">
+          <div class="model-opt-dot"></div>
+          <div class="model-opt-info">
+            <div class="model-opt-name">Gemini 2.5 Flash Native Audio</div>
+            <div class="model-opt-desc">Native audio dialog · Cảm xúc tự nhiên</div>
+          </div>
+          <span class="model-badge-pill badge-new">NATIVE</span>
+        </div>
+        <div class="model-opt" data-model="gemini-3.1-flash-tts-preview" data-type="tts" onclick="selectModel(this,'voice')">
+          <div class="model-opt-dot"></div>
+          <div class="model-opt-info">
+            <div class="model-opt-name">Gemini 3.1 Flash TTS</div>
+            <div class="model-opt-desc">Text-to-speech REST · Ổn định · Miễn phí</div>
+          </div>
+          <span class="model-badge-pill badge-fast">TTS</span>
+        </div>
+        <div class="model-opt" data-model="gemini-2.5-flash-preview-tts" data-type="tts" onclick="selectModel(this,'voice')">
+          <div class="model-opt-dot"></div>
+          <div class="model-opt-info">
+            <div class="model-opt-name">Gemini 2.5 Flash Preview TTS</div>
+            <div class="model-opt-desc">TTS fallback · Đáng tin cậy</div>
+          </div>
+          <span class="model-badge-pill badge-free">FREE</span>
+        </div>
+      </div>
+
+      <!-- Chat model list (hidden by default) -->
+      <div class="model-list" id="chat-model-list" style="display:none">
+        <div class="model-opt selected" data-model="gemini-2.5-flash-lite" onclick="selectModel(this,'chat')">
+          <div class="model-opt-dot"></div>
+          <div class="model-opt-info">
+            <div class="model-opt-name">Gemini 2.5 Flash Lite</div>
+            <div class="model-opt-desc">Nhanh nhất · Tiết kiệm token · Khuyên dùng</div>
+          </div>
+          <span class="model-badge-pill badge-fast">LITE</span>
+        </div>
+        <div class="model-opt" data-model="gemma-4-27b-it" onclick="selectModel(this,'chat')">
+          <div class="model-opt-dot"></div>
+          <div class="model-opt-info">
+            <div class="model-opt-name">Gemma 4 31B</div>
+            <div class="model-opt-desc">Mã nguồn mở · Miễn phí · Hiểu biết rộng</div>
+          </div>
+          <span class="model-badge-pill badge-free">OPEN</span>
+        </div>
+        <div class="model-opt" data-model="gemini-2.5-flash" onclick="selectModel(this,'chat')">
+          <div class="model-opt-dot"></div>
+          <div class="model-opt-info">
+            <div class="model-opt-name">Gemini 2.5 Flash</div>
+            <div class="model-opt-desc">Cân bằng chất lượng & tốc độ</div>
+          </div>
+          <span class="model-badge-pill badge-new">FLASH</span>
+        </div>
+        <div class="model-opt" data-model="gemini-2.5-flash-preview-05-20" onclick="selectModel(this,'chat')">
+          <div class="model-opt-dot"></div>
+          <div class="model-opt-info">
+            <div class="model-opt-name">Gemini 2.5 Flash Preview</div>
+            <div class="model-opt-desc">Phiên bản mới nhất · Tư duy nâng cao</div>
+          </div>
+          <span class="model-badge-pill badge-live">PREVIEW</span>
+        </div>
+        <div class="model-opt" data-model="gemini-1.5-flash" onclick="selectModel(this,'chat')">
+          <div class="model-opt-dot"></div>
+          <div class="model-opt-info">
+            <div class="model-opt-name">Gemini 1.5 Flash</div>
+            <div class="model-opt-desc">Ổn định · Backup khi quota hết</div>
+          </div>
+          <span class="model-badge-pill badge-fast">BACKUP</span>
+        </div>
+      </div>
+    </div>
+
+    <button class="go-btn" onclick="startApp()">Bắt đầu trò chuyện →</button>
+    <div class="setup-err" id="setup-err">⚠️ API key không hợp lệ</div>
+  </div>
+</div>
+
+<!-- ═══ APP ═══ -->
+<div id="app" style="display:none">
+  <header>
+    <div class="header-left">
+      <div class="header-logo">🎙️</div>
+      <div>
+        <div class="header-name">Gemini Voice</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <button class="hdr-model-btn" onclick="openModelModal()" title="Đổi model">
+        ⚙️ <span id="hdr-model">Loading...</span>
+      </button>
+      <div class="status-pill">
+        <div class="status-dot" id="status-dot"></div>
+        <span id="status-txt" style="font-family:'DM Mono',monospace">Sẵn sàng</span>
+      </div>
+      <button class="clear-btn" onclick="clearChat()">Xóa chat</button>
+    </div>
+  </header>
+
+  <!-- Model change modal -->
+  <div class="model-modal-overlay hidden" id="model-modal-overlay" onclick="closeModelModal(event)">
+    <div class="model-modal" style="position:relative">
+      <div class="model-modal-title">⚙️ Đổi Model</div>
+      <div class="model-modal-sub">Chọn model cho chat và voice. Thay đổi có hiệu lực ngay.</div>
+
+      <div style="margin-bottom:8px">
+        <div class="field-label" style="margin-bottom:8px">🎙️ Voice Model</div>
+        <div class="model-list" id="modal-voice-list">
+          <div class="model-opt selected" data-model="gemini-3.1-flash-live-preview" data-type="live" onclick="selectModalModel(this,'voice')">
+            <div class="model-opt-dot"></div>
+            <div class="model-opt-info">
+              <div class="model-opt-name">Gemini 3 Flash Live</div>
+              <div class="model-opt-desc">Giọng thật · Độ trễ thấp</div>
+            </div>
+            <span class="model-badge-pill badge-live">LIVE</span>
+          </div>
+          <div class="model-opt" data-model="gemini-2.5-flash-native-audio-preview-12-2025" data-type="live" onclick="selectModalModel(this,'voice')">
+            <div class="model-opt-dot"></div>
+            <div class="model-opt-info">
+              <div class="model-opt-name">Gemini 2.5 Native Audio</div>
+              <div class="model-opt-desc">Native dialog · Cảm xúc</div>
+            </div>
+            <span class="model-badge-pill badge-new">NATIVE</span>
+          </div>
+          <div class="model-opt" data-model="gemini-3.1-flash-tts-preview" data-type="tts" onclick="selectModalModel(this,'voice')">
+            <div class="model-opt-dot"></div>
+            <div class="model-opt-info">
+              <div class="model-opt-name">Gemini 3.1 Flash TTS</div>
+              <div class="model-opt-desc">TTS REST · Ổn định</div>
+            </div>
+            <span class="model-badge-pill badge-fast">TTS</span>
+          </div>
+          <div class="model-opt" data-model="gemini-2.5-flash-preview-tts" data-type="tts" onclick="selectModalModel(this,'voice')">
+            <div class="model-opt-dot"></div>
+            <div class="model-opt-info">
+              <div class="model-opt-name">Gemini 2.5 Flash TTS</div>
+              <div class="model-opt-desc">TTS preview · Fallback</div>
+            </div>
+            <span class="model-badge-pill badge-free">FREE</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:16px">
+        <div class="field-label" style="margin-bottom:8px">💬 Chat Model</div>
+        <div class="model-list" id="modal-chat-list">
+          <div class="model-opt selected" data-model="gemini-2.5-flash-lite" onclick="selectModalModel(this,'chat')">
+            <div class="model-opt-dot"></div>
+            <div class="model-opt-info">
+              <div class="model-opt-name">Gemini 2.5 Flash Lite</div>
+              <div class="model-opt-desc">Nhanh · Tiết kiệm token</div>
+            </div>
+            <span class="model-badge-pill badge-fast">LITE</span>
+          </div>
+          <div class="model-opt" data-model="gemma-4-27b-it" onclick="selectModalModel(this,'chat')">
+            <div class="model-opt-dot"></div>
+            <div class="model-opt-info">
+              <div class="model-opt-name">Gemma 4 31B</div>
+              <div class="model-opt-desc">Mã nguồn mở · Miễn phí</div>
+            </div>
+            <span class="model-badge-pill badge-free">OPEN</span>
+          </div>
+          <div class="model-opt" data-model="gemini-2.5-flash" onclick="selectModalModel(this,'chat')">
+            <div class="model-opt-dot"></div>
+            <div class="model-opt-info">
+              <div class="model-opt-name">Gemini 2.5 Flash</div>
+              <div class="model-opt-desc">Cân bằng chất lượng & tốc độ</div>
+            </div>
+            <span class="model-badge-pill badge-new">FLASH</span>
+          </div>
+          <div class="model-opt" data-model="gemini-2.5-flash-preview-05-20" onclick="selectModalModel(this,'chat')">
+            <div class="model-opt-dot"></div>
+            <div class="model-opt-info">
+              <div class="model-opt-name">Gemini 2.5 Flash Preview</div>
+              <div class="model-opt-desc">Mới nhất · Tư duy nâng cao</div>
+            </div>
+            <span class="model-badge-pill badge-live">PREVIEW</span>
+          </div>
+          <div class="model-opt" data-model="gemini-1.5-flash" onclick="selectModalModel(this,'chat')">
+            <div class="model-opt-dot"></div>
+            <div class="model-opt-info">
+              <div class="model-opt-name">Gemini 1.5 Flash</div>
+              <div class="model-opt-desc">Ổn định · Backup</div>
+            </div>
+            <span class="model-badge-pill badge-fast">BACKUP</span>
+          </div>
+        </div>
+      </div>
+
+      <button onclick="closeModelModal()" style="
+        margin-top:20px; width:100%; background:var(--ink); color:var(--paper);
+        border:none; border-radius:10px; padding:12px; font-family:'Outfit',sans-serif;
+        font-size:14px; font-weight:600; cursor:pointer;
+      ">Xong ✓</button>
+    </div>
+  </div>
+
+  <div id="chat-area">
+    <div class="welcome" id="welcome">
+      <div class="welcome-icon">🎙️</div>
+      <h2>Xin chào!<br><strong>Nói để bắt đầu</strong></h2>
+      <p>Nhấn nút mic rồi nói — Gemini 2.5 Flash sẽ suy nghĩ và trả lời bằng giọng nói thật sự.</p>
+      <div class="quick-tips">
+        <span class="tip" onclick="typeText('Hôm nay thời tiết thế nào?')">🌤 Thời tiết</span>
+        <span class="tip" onclick="typeText('Kể cho tôi nghe một câu chuyện vui ngắn')">😄 Câu chuyện vui</span>
+        <span class="tip" onclick="typeText('Giải thích trí tuệ nhân tạo bằng ngôn ngữ đơn giản')">🤖 AI là gì?</span>
+        <span class="tip" onclick="typeText('Dạy tôi một từ tiếng Anh thú vị')">📚 Học tiếng Anh</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="mic-section">
+    <div class="mic-inner">
+      <div id="live-bar">
+        <span id="live-text">Đang nghe...</span>
+        <span class="live-cursor"></span>
+      </div>
+
+      <div class="ctrl-row">
+        <button id="mic-btn" onclick="toggleMic()" title="Nhấn để nói">
+          <div id="vol-ring"></div>
+          🎙️
+        </button>
+
+        <div class="text-input-wrap">
+          <textarea id="text-input" placeholder="Hoặc gõ tin nhắn... (Enter gửi)"
+            onkeydown="handleTextKey(event)" oninput="growInput(this)" rows="1"></textarea>
+          <button class="send-btn" id="send-btn" onclick="sendText()" title="Gửi">➤</button>
+        </div>
+
+        <button id="stop-btn" onclick="stopSpeaking()">⏹ Dừng</button>
+      </div>
+
+      <div class="mic-hint" id="mic-hint">
+        Nhấn 🎙️ để nói · Hỗ trợ tiếng Việt và tiếng Anh
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ═══ STATE ═══
+let KEY = '';
+let VOICE = 'Aoede';
+let chatHistory = [];
+let recognition = null;
+let isListening = false;
+let isBusy = false;
+let currentAudio = null;
+let audioQueue = [];
+let isPlayingQueue = false;
+let volAnalyser = null;
+let volAnim = null;
+
+// ═══ MODEL CONFIG ═══
+
+// Tất cả voice models (Live WebSocket + TTS REST)
+const ALL_VOICE_MODELS = {
+  'gemini-3.1-flash-live-preview':                 { type: 'live', label: 'Gemini 3 Flash Live' },
+  'gemini-2.5-flash-native-audio-preview-12-2025': { type: 'live', label: 'Gemini 2.5 Native Audio' },
+  'gemini-3.1-flash-tts-preview':                  { type: 'tts',  label: 'Gemini 3.1 Flash TTS' },
+  'gemini-2.5-flash-preview-tts':                  { type: 'tts',  label: 'Gemini 2.5 Flash TTS' },
+  'gemini-2.5-pro-preview-tts':                    { type: 'tts',  label: 'Gemini 2.5 Pro TTS' },
+};
+
+// Tất cả chat models
+const ALL_CHAT_MODELS = {
+  'gemini-2.5-flash-lite':         'Gemini 2.5 Flash Lite',
+  'gemma-4-27b-it':                'Gemma 4 31B',
+  'gemini-2.5-flash':              'Gemini 2.5 Flash',
+  'gemini-2.5-flash-preview-05-20':'Gemini 2.5 Flash Preview',
+  'gemini-1.5-flash':              'Gemini 1.5 Flash',
+};
+
+// Model được chọn (thay đổi khi user chọn)
+let SELECTED_VOICE_MODEL = 'gemini-3.1-flash-live-preview';
+let SELECTED_VOICE_TYPE  = 'live'; // 'live' | 'tts'
+let SELECTED_CHAT_MODEL  = 'gemini-2.5-flash-lite';
+
+// Fallback chains (thêm các model khác nếu model chính lỗi)
+function getVoiceFallbackChain() {
+  // Bắt đầu từ model được chọn, rồi thêm fallback
+  const chain = [];
+  // 1. model được chọn
+  chain.push({ model: SELECTED_VOICE_MODEL, type: SELECTED_VOICE_TYPE });
+  // 2. live fallback nếu chọn live
+  if (SELECTED_VOICE_TYPE === 'live') {
+    if (SELECTED_VOICE_MODEL !== 'gemini-3.1-flash-live-preview')
+      chain.push({ model: 'gemini-3.1-flash-live-preview', type: 'live' });
+    if (SELECTED_VOICE_MODEL !== 'gemini-2.5-flash-native-audio-preview-12-2025')
+      chain.push({ model: 'gemini-2.5-flash-native-audio-preview-12-2025', type: 'live' });
+  }
+  // 3. TTS REST fallback luôn có
+  chain.push({ model: 'gemini-3.1-flash-tts-preview', type: 'tts' });
+  chain.push({ model: 'gemini-2.5-flash-preview-tts', type: 'tts' });
+  // Bỏ trùng
+  const seen = new Set();
+  return chain.filter(c => { if (seen.has(c.model)) return false; seen.add(c.model); return true; });
+}
+
+function getChatFallbackChain() {
+  const chain = [SELECTED_CHAT_MODEL];
+  const defaults = ['gemini-2.5-flash-lite','gemini-2.5-flash','gemma-4-27b-it','gemini-1.5-flash'];
+  for (const m of defaults) if (!chain.includes(m)) chain.push(m);
+  return chain;
+}
+
+// WebSocket URL cho Live API
+const LIVE_WS_URL = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent`;
+
+// ═══ LIVE API ENGINE (WebSocket) ═══
+// Gửi text → nhận audio PCM 24kHz về qua WebSocket
+function callGeminiLive(text, modelName) {
+  return new Promise((resolve, reject) => {
+    const url = `${LIVE_WS_URL}?key=${KEY}`;
+    const ws = new WebSocket(url);
+    const audioParts = []; // thu thập các chunk audio PCM
+    let setupDone = false;
+    let turnComplete = false;
+    const timeout = setTimeout(() => {
+      ws.close();
+      reject(new Error('SKIP:Live API timeout'));
+    }, 15000);
+
+    ws.onopen = () => {
+      // Bước 1: gửi setup message
+      ws.send(JSON.stringify({
+        setup: {
+          model: `models/${modelName}`,
+          generationConfig: {
+            responseModalities: ['AUDIO'],
+            speechConfig: {
+              voiceConfig: { prebuiltVoiceConfig: { voiceName: VOICE } }
+            }
+          },
+          systemInstruction: {
+            parts: [{ text: `Bạn là trợ lý AI thông minh. Trả lời ngắn gọn, tự nhiên bằng tiếng Việt. Tránh markdown.` }]
+          }
+        }
+      }));
+    };
+
+    ws.onmessage = (evt) => {
+      let msg;
+      try { msg = JSON.parse(evt.data); } catch { return; }
+
+      // Setup hoàn tất → gửi nội dung
+      if (msg.setupComplete && !setupDone) {
+        setupDone = true;
+        ws.send(JSON.stringify({
+          clientContent: {
+            turns: [{ role: 'user', parts: [{ text }] }],
+            turnComplete: true
+          }
+        }));
+      }
+
+      // Nhận audio chunks từ server
+      const parts = msg.serverContent?.modelTurn?.parts || [];
+      for (const part of parts) {
+        const data = part.inlineData || part.inline_data;
+        if (data) {
+          const mime = data.mimeType || data.mime_type || 'audio/pcm';
+          if (mime.startsWith('audio/')) {
+            audioParts.push(data.data); // base64 PCM
+          }
+        }
+      }
+
+      // Turn complete → ghép audio và resolve
+      if (msg.serverContent?.turnComplete) {
+        turnComplete = true;
+        clearTimeout(timeout);
+        ws.close();
+        if (audioParts.length === 0) {
+          reject(new Error('SKIP:No audio from Live API'));
+          return;
+        }
+        // Ghép tất cả base64 chunks thành 1
+        const combined = joinBase64Chunks(audioParts);
+        resolve({ b64: combined, mime: 'audio/pcm' });
+      }
+    };
+
+    ws.onerror = (e) => {
+      clearTimeout(timeout);
+      reject(new Error('SKIP:Live API WebSocket error'));
+    };
+
+    ws.onclose = (e) => {
+      clearTimeout(timeout);
+      if (!turnComplete) {
+        reject(new Error(`SKIP:Live API closed early (code ${e.code})`));
+      }
+    };
+  });
+}
+
+// Ghép nhiều mảng base64 PCM lại thành 1
+function joinBase64Chunks(chunks) {
+  // Decode tất cả → concat → re-encode
+  const arrays = chunks.map(b64 => {
+    const raw = atob(b64);
+    const arr = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+    return arr;
+  });
+  const total = arrays.reduce((s, a) => s + a.length, 0);
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const a of arrays) { out.set(a, offset); offset += a.length; }
+  // Re-encode sang base64
+  let binary = '';
+  for (let i = 0; i < out.length; i++) binary += String.fromCharCode(out[i]);
+  return btoa(binary);
+}
+
+// ═══ SETUP ═══
+function toggleEye() {
+  const i = document.getElementById('api-key');
+  const b = document.getElementById('eye-btn');
+  i.type = i.type === 'password' ? 'text' : 'password';
+  b.textContent = i.type === 'password' ? '👁️' : '🙈';
+}
+
+function selectVoice(el) {
+  document.querySelectorAll('.voice-opt').forEach(v => v.classList.remove('selected'));
+  el.classList.add('selected');
+  VOICE = el.dataset.voice;
+}
+
+// Chuyển tab Voice/Chat trong setup
+function switchModelTab(tab) {
+  document.getElementById('tab-voice').classList.toggle('active', tab === 'voice');
+  document.getElementById('tab-chat').classList.toggle('active', tab === 'chat');
+  document.getElementById('voice-model-list').style.display = tab === 'voice' ? 'flex' : 'none';
+  document.getElementById('chat-model-list').style.display  = tab === 'chat'  ? 'flex' : 'none';
+}
+
+// Chọn model trong setup screen
+function selectModel(el, type) {
+  const list = type === 'voice' ? 'voice-model-list' : 'chat-model-list';
+  document.querySelectorAll(`#${list} .model-opt`).forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  if (type === 'voice') {
+    SELECTED_VOICE_MODEL = el.dataset.model;
+    SELECTED_VOICE_TYPE  = el.dataset.type || 'tts';
+    // Sync modal too
+    syncModalSelection('voice', SELECTED_VOICE_MODEL);
+  } else {
+    SELECTED_CHAT_MODEL = el.dataset.model;
+    syncModalSelection('chat', SELECTED_CHAT_MODEL);
+  }
+}
+
+// Chọn model trong modal (header)
+function selectModalModel(el, type) {
+  const list = type === 'voice' ? 'modal-voice-list' : 'modal-chat-list';
+  document.querySelectorAll(`#${list} .model-opt`).forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  if (type === 'voice') {
+    SELECTED_VOICE_MODEL = el.dataset.model;
+    SELECTED_VOICE_TYPE  = el.dataset.type || 'tts';
+    syncSetupSelection('voice', SELECTED_VOICE_MODEL);
+  } else {
+    SELECTED_CHAT_MODEL = el.dataset.model;
+    syncSetupSelection('chat', SELECTED_CHAT_MODEL);
+  }
+  updateHdrModel();
+}
+
+// Sync setup screen selection to match modal
+function syncSetupSelection(type, model) {
+  const list = type === 'voice' ? 'voice-model-list' : 'chat-model-list';
+  document.querySelectorAll(`#${list} .model-opt`).forEach(o => {
+    o.classList.toggle('selected', o.dataset.model === model);
+  });
+}
+
+// Sync modal selection to match setup
+function syncModalSelection(type, model) {
+  const list = type === 'voice' ? 'modal-voice-list' : 'modal-chat-list';
+  document.querySelectorAll(`#${list} .model-opt`).forEach(o => {
+    o.classList.toggle('selected', o.dataset.model === model);
+  });
+}
+
+function updateHdrModel() {
+  const vLabel = ALL_VOICE_MODELS[SELECTED_VOICE_MODEL]?.label || SELECTED_VOICE_MODEL;
+  const cLabel = ALL_CHAT_MODELS[SELECTED_CHAT_MODEL] || SELECTED_CHAT_MODEL;
+  const vType  = SELECTED_VOICE_TYPE === 'live' ? '⚡' : '🔊';
+  document.getElementById('hdr-model').textContent = `${vType}${vLabel} · 💬${cLabel}`;
+}
+
+function openModelModal() {
+  document.getElementById('model-modal-overlay').classList.remove('hidden');
+}
+
+function closeModelModal(e) {
+  if (!e || e.target === document.getElementById('model-modal-overlay') || !e.target.closest) {
+    document.getElementById('model-modal-overlay').classList.add('hidden');
+  } else if (!e.target.closest('.model-modal')) {
+    document.getElementById('model-modal-overlay').classList.add('hidden');
+  }
+}
+
+function startApp() {
+  const k = document.getElementById('api-key').value.trim();
+  if (!k || !k.startsWith('AIza')) {
+    document.getElementById('setup-err').style.display = 'block';
+    return;
+  }
+  KEY = k;
+  document.getElementById('setup').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  updateHdrModel();
+  initSpeechRecognition();
+  setTimeout(() => addSystemGreeting(), 500);
+}
+
+// ═══ SPEECH RECOGNITION ═══
+function initSpeechRecognition() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    document.getElementById('mic-hint').textContent = '⚠️ Trình duyệt không hỗ trợ nhận dạng giọng nói. Vui lòng dùng Chrome/Edge.';
+    document.getElementById('mic-btn').disabled = true;
+    return;
+  }
+
+  recognition = new SpeechRecognition();
+  recognition.continuous = false;
+  recognition.interimResults = true;
+  recognition.lang = 'vi-VN'; // Tiếng Việt, fallback to auto-detect
+
+  recognition.onstart = () => {
+    isListening = true;
+    setStatus('listening', 'Đang nghe...');
+    document.getElementById('mic-btn').className = 'listening';
+    document.getElementById('mic-btn').textContent = '';
+    document.getElementById('mic-btn').innerHTML = '<div id="vol-ring" class="active"></div>🔴';
+    document.getElementById('live-bar').classList.add('active');
+    document.getElementById('live-text').textContent = 'Đang nghe...';
+  };
+
+  recognition.onresult = (e) => {
+    let interim = '', final = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript;
+      if (e.results[i].isFinal) final += t;
+      else interim += t;
+    }
+    const display = final || interim;
+    document.getElementById('live-text').textContent = display || 'Đang nghe...';
+    if (final) {
+      stopListening();
+      processUserInput(final.trim());
+    }
+  };
+
+  recognition.onerror = (e) => {
+    stopListening();
+    if (e.error === 'no-speech') {
+      setStatus('ready', 'Sẵn sàng');
+    } else if (e.error === 'not-allowed') {
+      addMsg('ai', '⚠️ Không có quyền truy cập microphone. Vui lòng cấp quyền trong cài đặt trình duyệt.', null, true);
+    } else {
+      addMsg('ai', `⚠️ Lỗi nhận dạng giọng nói: ${e.error}. Thử lại hoặc dùng bàn phím.`, null, true);
+    }
+  };
+
+  recognition.onend = () => {
+    if (isListening) stopListening();
+  };
+}
+
+function toggleMic() {
+  if (isBusy) return;
+  if (currentAudio) { stopSpeaking(); return; }
+  if (isListening) stopListening();
+  else startListening();
+}
+
+function startListening() {
+  if (!recognition) return;
+  stopSpeaking();
+  recognition.start();
+}
+
+function stopListening() {
+  isListening = false;
+  if (recognition) { try { recognition.stop(); } catch(e){} }
+  const btn = document.getElementById('mic-btn');
+  btn.className = '';
+  btn.innerHTML = '<div id="vol-ring"></div>🎙️';
+  document.getElementById('live-bar').classList.remove('active');
+}
+
+// ═══ TEXT INPUT FALLBACK ═══
+function handleTextKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendText();
+  }
+}
+
+function growInput(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+function sendText() {
+  const inp = document.getElementById('text-input');
+  const txt = inp.value.trim();
+  if (!txt || isBusy) return;
+  inp.value = ''; inp.style.height = 'auto';
+  processUserInput(txt);
+}
+
+function typeText(t) {
+  document.getElementById('text-input').value = t;
+  growInput(document.getElementById('text-input'));
+  document.getElementById('text-input').focus();
+}
+
+// ═══ MAIN PIPELINE ═══
+async function processUserInput(text) {
+  if (!text || isBusy) return;
+  isBusy = true;
+  document.getElementById('send-btn').disabled = true;
+
+  // Remove welcome
+  const wlc = document.getElementById('welcome');
+  if (wlc) wlc.remove();
+
+  // Show user message
+  addMsg('user', text, null, false);
+
+  // Show typing
+  showTyping('Gemini đang suy nghĩ...');
+
+  // Step 1: Get text response from Gemini 2.5 Flash
+  let aiText = null;
+  try {
+    aiText = await callGeminiChat(text);
+  } catch (err) {
+    hideTyping();
+    addMsg('ai', `⚠️ Lỗi kết nối: ${err.message}`, null, true);
+    setStatus('ready', 'Sẵn sàng');
+    isBusy = false;
+    document.getElementById('send-btn').disabled = false;
+    return;
+  }
+
+  hideTyping();
+
+  if (!aiText) {
+    addMsg('ai', '⚠️ Không nhận được phản hồi. Thử lại nhé!', null, true);
+    setStatus('ready', 'Sẵn sàng');
+    isBusy = false;
+    document.getElementById('send-btn').disabled = false;
+    return;
+  }
+
+  // Show text message first
+  const msgId = 'msg_' + Date.now();
+  addMsg('ai', aiText, msgId, false);
+
+  // Step 2: Convert to speech — dùng model được chọn, fallback tự động
+  setStatus('busy', 'Đang tổng hợp giọng nói...');
+
+  let audioB64 = null;
+  const voiceChain = getVoiceFallbackChain();
+
+  for (const { model, type } of voiceChain) {
+    try {
+      const shortName = ALL_VOICE_MODELS[model]?.label || model;
+      updateTypingStatus(`Đang tạo giọng (${shortName})...`);
+
+      if (type === 'live') {
+        audioB64 = await callGeminiLive(aiText, model);
+      } else {
+        audioB64 = await callGeminiTTS(aiText, model);
+      }
+
+      if (audioB64) {
+        const typeIcon = type === 'live' ? '⚡' : '🔊';
+        document.getElementById('hdr-model').textContent =
+          `${typeIcon}${shortName} · 💬${ALL_CHAT_MODELS[SELECTED_CHAT_MODEL] || SELECTED_CHAT_MODEL}`;
+        console.log(`[Voice] OK: ${model} (${type})`);
+        break;
+      }
+    } catch (err) {
+      const msg = err.message || '';
+      console.log(`[Voice] ${model} failed:`, msg.replace('SKIP:', ''));
+      if (msg.startsWith('SKIP:')) continue;
+      break;
+    }
+  }
+
+  if (audioB64) {
+    setStatus('speaking', 'Đang nói...');
+    await playAudio(audioB64, msgId);
+  } else {
+    // TTS failed — show message but no audio
+    updateMsgPlayBtn(msgId, null, true);
+  }
+
+  setStatus('ready', 'Sẵn sàng');
+  isBusy = false;
+  document.getElementById('send-btn').disabled = false;
+}
+
+// ═══ GEMINI CHAT ═══
+async function callGeminiChat(userText) {
+  chatHistory.push({ role: 'user', parts: [{ text: userText }] });
+
+  const systemPrompt = `Bạn là trợ lý AI thông minh, trả lời bằng giọng nói. Hãy:
+- Trả lời ngắn gọn, tự nhiên như khi nói chuyện (không quá 3-4 câu cho câu hỏi thông thường)
+- Dùng tiếng Việt tự nhiên, thân thiện
+- Tránh dùng markdown, bullet points, ký hiệu đặc biệt vì sẽ được đọc thành tiếng
+- Câu trả lời phải nghe hay khi được đọc to`;
+
+  for (const model of getChatFallbackChain()) {
+    try {
+      // thinking_config chỉ hỗ trợ trên Gemini 2.5 Flash/Pro
+      const supportsThinking = model.startsWith('gemini-2.5-flash') || model.startsWith('gemini-2.5-pro');
+      const genConfig = supportsThinking
+        ? { temperature: 1, max_output_tokens: 512, thinking_config: { thinking_budget: 0 } }
+        : { temperature: 1, max_output_tokens: 512 };
+
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${KEY}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            system_instruction: { parts: [{ text: systemPrompt }] },
+            contents: chatHistory,
+            generation_config: genConfig
+          })
+        }
+      );
+      const d = await res.json();
+      if (d.error) {
+        const status = d.error.status || '';
+        // NOT_FOUND, INVALID_ARGUMENT, RESOURCE_EXHAUSTED (quota), UNAVAILABLE → thử model tiếp
+        if (['NOT_FOUND','INVALID_ARGUMENT','RESOURCE_EXHAUSTED','UNAVAILABLE'].includes(status)
+            || res.status === 404 || res.status === 429 || res.status === 503) {
+          console.log(`Chat model ${model} skipped:`, status);
+          continue;
+        }
+        throw new Error(d.error.message);
+      }
+      const parts = d.candidates?.[0]?.content?.parts || [];
+      // Filter out thought parts, keep only response text
+      const reply = parts
+        .filter(p => p.text && !p.thought)
+        .map(p => p.text)
+        .join('');
+
+      if (reply) {
+        chatHistory.push({ role: 'model', parts: [{ text: reply }] });
+        document.getElementById('hdr-model').textContent = `Chat: ${model}`;
+        return reply;
+      }
+    } catch (err) {
+      const msg = err.message || '';
+      if (msg.includes('NOT_FOUND') || msg.includes('INVALID') || msg.includes('RESOURCE_EXHAUSTED')) {
+        console.log(`Chat model ${model} error, trying next:`, msg);
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error('Tất cả model chat đều không phản hồi');
+}
+
+// ═══ GEMINI TTS ═══
+async function callGeminiTTS(text, model) {
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text }] }],
+        generationConfig: {
+          responseModalities: ['AUDIO'],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName: VOICE }
+            }
+          }
+        }
+      })
+    }
+  );
+
+  const d = await res.json();
+
+  if (d.error) {
+    const status = d.error.status || '';
+    console.warn(`[TTS] ${model} → ${res.status} ${status}: ${d.error.message}`);
+    if (['NOT_FOUND','RESOURCE_EXHAUSTED','UNAVAILABLE','INVALID_ARGUMENT'].includes(status)
+        || res.status === 404 || res.status === 429 || res.status === 503) {
+      throw new Error(`SKIP:${status}`);
+    }
+    throw new Error(`${status}: ${d.error.message}`);
+  }
+
+  const parts = d.candidates?.[0]?.content?.parts || [];
+  console.log(`[TTS] ${model} → ${res.status} OK, parts:`, parts.map(p => Object.keys(p)));
+
+  // Hỗ trợ cả camelCase và snake_case từ API
+  const audioPart = parts.find(p => p.inlineData || p.inline_data);
+  if (!audioPart) {
+    console.warn(`[TTS] ${model} → no audio part in response`, JSON.stringify(d).slice(0, 300));
+    throw new Error('SKIP:No audio in TTS response');
+  }
+
+  const inlineData = audioPart.inlineData || audioPart.inline_data;
+  const mimeType   = inlineData.mimeType  || inlineData.mime_type || 'audio/pcm';
+  console.log(`[TTS] ${model} → audio OK, mime=${mimeType}, dataLen=${inlineData.data?.length}`);
+  return { b64: inlineData.data, mime: mimeType };
+}
+
+// ═══ AUDIO PLAYBACK ═══
+// TTS returns PCM/L16 audio — need to convert to WAV for browser playback
+function pcmToWav(pcmB64, sampleRate = 24000, numChannels = 1, bitsPerSample = 16) {
+  const pcmData = atob(pcmB64);
+  const pcmBytes = new Uint8Array(pcmData.length);
+  for (let i = 0; i < pcmData.length; i++) pcmBytes[i] = pcmData.charCodeAt(i);
+
+  const wavBuffer = new ArrayBuffer(44 + pcmBytes.length);
+  const view = new DataView(wavBuffer);
+
+  const writeStr = (offset, str) => {
+    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+  };
+  const writeU32 = (offset, val) => view.setUint32(offset, val, true);
+  const writeU16 = (offset, val) => view.setUint16(offset, val, true);
+
+  writeStr(0, 'RIFF');
+  writeU32(4, 36 + pcmBytes.length);
+  writeStr(8, 'WAVE');
+  writeStr(12, 'fmt ');
+  writeU32(16, 16); // PCM chunk size
+  writeU16(20, 1);  // PCM format
+  writeU16(22, numChannels);
+  writeU32(24, sampleRate);
+  writeU32(28, sampleRate * numChannels * (bitsPerSample / 8));
+  writeU16(32, numChannels * (bitsPerSample / 8));
+  writeU16(34, bitsPerSample);
+  writeStr(36, 'data');
+  writeU32(40, pcmBytes.length);
+  new Uint8Array(wavBuffer, 44).set(pcmBytes);
+
+  return wavBuffer;
+}
+
+async function playAudio(audioData, msgId) {
+  return new Promise((resolve) => {
+    try {
+      let url;
+      const { b64, mime } = audioData;
+
+      // PCM/L16 cần convert sang WAV — mime có thể là 'audio/pcm', 'audio/L16', 'audio/pcm;rate=24000' v.v.
+      const isPCM = mime && (mime.startsWith('audio/pcm') || mime.startsWith('audio/L16') || mime.startsWith('audio/x-l16') || mime === 'audio/raw');
+
+      if (isPCM) {
+        const wavBuffer = pcmToWav(b64);
+        const blob = new Blob([wavBuffer], { type: 'audio/wav' });
+        url = URL.createObjectURL(blob);
+      } else {
+        // mp3/aac/ogg/wav — dùng trực tiếp
+        const raw = atob(b64);
+        const bytes = new Uint8Array(raw.length);
+        for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+        const mimeClean = (mime || 'audio/wav').split(';')[0]; // strip params như ;rate=24000
+        const blob = new Blob([bytes], { type: mimeClean });
+        url = URL.createObjectURL(blob);
+      }
+
+      currentAudio = new Audio(url);
+      document.getElementById('stop-btn').classList.add('show');
+
+      // Cập nhật nút "Nghe lại" — giữ URL, KHÔNG revoke ngay
+      updateMsgPlayBtn(msgId, url, false);
+
+      currentAudio.onended = () => {
+        currentAudio = null;
+        document.getElementById('stop-btn').classList.remove('show');
+        document.getElementById('mic-btn').innerHTML = '<div id="vol-ring"></div>🎙️';
+        document.getElementById('mic-btn').className = '';
+        resolve();
+        // KHÔNG revokeObjectURL ở đây — để nút Nghe lại còn dùng được
+      };
+
+      currentAudio.onerror = (e) => {
+        console.error('Audio playback error, mime was:', mime, e);
+        currentAudio = null;
+        document.getElementById('stop-btn').classList.remove('show');
+        resolve();
+      };
+
+      document.getElementById('mic-btn').className = 'speaking';
+      document.getElementById('mic-btn').innerHTML = '<div id="vol-ring"></div>🔊';
+      currentAudio.play().catch((e) => {
+        console.error('play() rejected:', e);
+        resolve();
+      });
+
+    } catch (err) {
+      console.error('Audio playback error:', err);
+      resolve();
+    }
+  });
+}
+
+function stopSpeaking() {
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio = null;
+  }
+  document.getElementById('stop-btn').classList.remove('show');
+  document.getElementById('mic-btn').className = '';
+  document.getElementById('mic-btn').innerHTML = '<div id="vol-ring"></div>🎙️';
+  setStatus('ready', 'Sẵn sàng');
+}
+
+// ═══ RENDER ═══
+function addMsg(role, text, msgId, isErr) {
+  const chat = document.getElementById('chat-area');
+  const row = document.createElement('div');
+  row.className = 'msg-row ' + role;
+  if (msgId) row.id = msgId;
+
+  const av = document.createElement('div');
+  av.className = 'av ' + (role === 'ai' ? 'ai-av' : 'user-av');
+  av.textContent = role === 'ai' ? '🤖' : '👤';
+
+  const bub = document.createElement('div');
+  bub.className = 'bubble';
+
+  if (isErr) {
+    bub.innerHTML = `<div class="err-msg">${text}</div>`;
+    bub.style.cssText = 'background:transparent;border:none;padding:0;';
+  } else {
+    bub.innerHTML = `<p>${escHtml(text)}</p>`;
+    if (role === 'ai') {
+      // Placeholder for play button — filled after TTS
+      const pb = document.createElement('div');
+      pb.id = 'pb_' + (msgId || Date.now());
+      pb.className = 'play-placeholder';
+      bub.appendChild(pb);
+    }
+  }
+
+  row.appendChild(av);
+  row.appendChild(bub);
+  chat.appendChild(row);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function updateMsgPlayBtn(msgId, audioUrl, failed) {
+  const row = document.getElementById(msgId);
+  if (!row) return;
+  const ph = row.querySelector('.play-placeholder');
+  if (!ph) return;
+
+  if (failed) {
+    ph.innerHTML = `<span style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">🔇 Không có audio</span>`;
+    return;
+  }
+
+  ph.innerHTML = `<button class="play-btn" onclick="replayAudio('${audioUrl}', this)">
+    ▶ Nghe lại
+  </button>`;
+}
+
+function replayAudio(url, btn) {
+  if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+  currentAudio = new Audio(url);
+  btn.textContent = '⏹ Đang phát...';
+  btn.classList.add('playing');
+  currentAudio.onended = () => {
+    btn.textContent = '▶ Nghe lại';
+    btn.classList.remove('playing');
+    currentAudio = null;
+  };
+  currentAudio.play().catch(() => {
+    btn.textContent = '▶ Nghe lại';
+    btn.classList.remove('playing');
+  });
+}
+
+let typingEl = null;
+function showTyping(status) {
+  const chat = document.getElementById('chat-area');
+  const el = document.createElement('div');
+  el.id = 'typing-el';
+  el.className = 'typing-row';
+  el.innerHTML = `<div class="av ai-av">🤖</div>
+    <div class="typing-bub">
+      <div class="dots-row">
+        <div class="dot"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+      </div>
+      <div class="typing-status" id="t-stat">${status}</div>
+    </div>`;
+  chat.appendChild(el);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function hideTyping() {
+  const el = document.getElementById('typing-el');
+  if (el) el.remove();
+}
+
+function updateTypingStatus(s) {
+  const el = document.getElementById('t-stat');
+  if (el) el.textContent = s;
+}
+
+function setStatus(type, text) {
+  const dot = document.getElementById('status-dot');
+  const txt = document.getElementById('status-txt');
+  dot.className = 'status-dot ' + type;
+  txt.textContent = text;
+}
+
+function escHtml(t) {
+  return String(t)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\n/g,'<br>');
+}
+
+// ═══ GREETING ═══
+async function addSystemGreeting() {
+  const text = 'Xin chào! Tôi là Gemini. Bạn có thể nhấn vào nút mic và nói chuyện với tôi. Hỏi bất cứ điều gì nhé!';
+  addMsg('ai', text, 'greeting', false);
+
+  let audio = null;
+  for (const { model, type } of getVoiceFallbackChain()) {
+    try {
+      audio = type === 'live'
+        ? await callGeminiLive(text, model)
+        : await callGeminiTTS(text, model);
+      if (audio) { console.log('[Greeting] OK:', model); break; }
+    } catch(e) {
+      const msg = e.message || '';
+      if (msg.startsWith('SKIP:')) continue;
+      break;
+    }
+  }
+
+  if (audio) {
+    setStatus('speaking', 'Đang chào...');
+    await playAudio(audio, 'greeting');
+    setStatus('ready', 'Sẵn sàng');
+  }
+}
+
+// ═══ CLEAR ═══
+function clearChat() {
+  if (!confirm('Xóa toàn bộ lịch sử trò chuyện?')) return;
+  chatHistory = [];
+  stopSpeaking();
+  document.getElementById('chat-area').innerHTML = `<div class="welcome" id="welcome">
+    <div class="welcome-icon">🎙️</div>
+    <h2>Chat mới!</h2>
+    <p>Nhấn mic để bắt đầu nói chuyện với Gemini.</p>
+  </div>`;
+}
+</script>
+</body>
+</html>
