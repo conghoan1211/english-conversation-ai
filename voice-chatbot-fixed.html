@@ -539,6 +539,97 @@ header {
 }
 .model-badge:hover { border-color: var(--accent2); color: var(--accent2); }
 
+/* ═══ MODEL SELECTOR PANEL ═══ */
+.model-section { margin-bottom: 24px; }
+
+.model-tabs {
+  display: flex; gap: 6px; margin-bottom: 12px;
+}
+.model-tab {
+  flex: 1; padding: 8px 12px; border-radius: 8px;
+  border: 1.5px solid var(--line); background: var(--bubble-ai);
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  letter-spacing: 1px; text-transform: uppercase; color: var(--muted);
+  cursor: pointer; transition: all .2s; text-align: center;
+}
+.model-tab.active {
+  border-color: var(--accent2); color: var(--accent2);
+  background: rgba(58,124,232,.06);
+}
+
+.model-list { display: flex; flex-direction: column; gap: 6px; }
+
+.model-opt {
+  border: 1.5px solid var(--line); border-radius: 10px;
+  padding: 10px 14px; cursor: pointer; transition: all .2s;
+  background: var(--bubble-ai); display: flex; align-items: center; gap: 12px;
+}
+.model-opt:hover { border-color: var(--accent2); }
+.model-opt.selected { border-color: var(--accent); background: rgba(232,83,58,.05); }
+
+.model-opt-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  border: 2px solid var(--line); flex-shrink: 0; transition: all .2s;
+}
+.model-opt.selected .model-opt-dot {
+  background: var(--accent); border-color: var(--accent);
+  box-shadow: 0 0 6px rgba(232,83,58,.4);
+}
+
+.model-opt-info { flex: 1; min-width: 0; }
+.model-opt-name { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+.model-opt-desc { font-size: 11px; color: var(--muted); }
+
+.model-badge-pill {
+  font-family: 'DM Mono', monospace; font-size: 9px;
+  padding: 2px 7px; border-radius: 20px; letter-spacing: .5px;
+  flex-shrink: 0;
+}
+.badge-live { background: rgba(58,124,232,.1); color: var(--accent2); border: 1px solid rgba(58,124,232,.2); }
+.badge-fast { background: rgba(201,146,42,.1); color: var(--gold); border: 1px solid rgba(201,146,42,.2); }
+.badge-free { background: rgba(76,175,80,.1); color: #4CAF50; border: 1px solid rgba(76,175,80,.2); }
+.badge-new  { background: rgba(156,39,176,.1); color: #9C27B0; border: 1px solid rgba(156,39,176,.2); }
+
+/* Header model selector dropdown */
+.hdr-model-btn {
+  background: var(--paper2); border: 1px solid var(--line);
+  border-radius: 8px; padding: 5px 10px 5px 10px;
+  font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted);
+  cursor: pointer; transition: all .2s; display: flex; align-items: center; gap: 5px;
+  white-space: nowrap; max-width: 200px; overflow: hidden;
+}
+.hdr-model-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+.hdr-model-btn span { overflow: hidden; text-overflow: ellipsis; }
+
+/* Modal overlay for model picker */
+.model-modal-overlay {
+  position: fixed; inset: 0; background: rgba(10,12,16,.4);
+  backdrop-filter: blur(4px); z-index: 200;
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 80px 20px 20px; animation: fadeIn .2s ease;
+}
+.model-modal-overlay.hidden { display: none; }
+@keyframes fadeIn { from{opacity:0} to{opacity:1} }
+
+.model-modal {
+  background: var(--paper); border: 1px solid var(--line);
+  border-radius: 18px; padding: 24px; width: 100%; max-width: 460px;
+  box-shadow: 0 24px 60px rgba(10,12,16,.2);
+  animation: rise .3s cubic-bezier(.22,1,.36,1);
+  max-height: calc(100vh - 120px); overflow-y: auto;
+}
+.model-modal-title {
+  font-size: 16px; font-weight: 600; margin-bottom: 4px; letter-spacing: -.3px;
+}
+.model-modal-sub {
+  font-size: 12px; color: var(--muted); margin-bottom: 20px;
+}
+.model-modal-close {
+  position: absolute; top: 16px; right: 16px;
+  background: none; border: 1px solid var(--line); border-radius: 8px;
+  padding: 6px 10px; cursor: pointer; color: var(--muted); font-size: 12px;
+}
+
 @media(max-width:580px){
   .setup-title { font-size:32px; }
   .voice-grid { grid-template-columns:1fr; }
@@ -547,6 +638,7 @@ header {
   #chat-area { padding:20px 12px; }
   .bubble { max-width:calc(100% - 56px); font-size:14px; }
   #mic-section { padding:14px; }
+  .hdr-model-btn { max-width: 130px; }
 }
 </style>
 </head>
@@ -596,6 +688,94 @@ header {
       </div>
     </div>
 
+    <div class="field-label">Chọn model Chat & Voice</div>
+    <div class="model-section">
+      <div class="model-tabs">
+        <div class="model-tab active" id="tab-voice" onclick="switchModelTab('voice')">🎙️ Voice</div>
+        <div class="model-tab" id="tab-chat" onclick="switchModelTab('chat')">💬 Chat</div>
+      </div>
+
+      <!-- Voice model list -->
+      <div class="model-list" id="voice-model-list">
+        <div class="model-opt selected" data-model="gemini-3.1-flash-live-preview" data-type="live" onclick="selectModel(this,'voice')">
+          <div class="model-opt-dot"></div>
+          <div class="model-opt-info">
+            <div class="model-opt-name">Gemini 3 Flash Live</div>
+            <div class="model-opt-desc">Giọng nói thật · Độ trễ cực thấp · WebSocket</div>
+          </div>
+          <span class="model-badge-pill badge-live">LIVE</span>
+        </div>
+        <div class="model-opt" data-model="gemini-2.5-flash-native-audio-preview-12-2025" data-type="live" onclick="selectModel(this,'voice')">
+          <div class="model-opt-dot"></div>
+          <div class="model-opt-info">
+            <div class="model-opt-name">Gemini 2.5 Flash Native Audio</div>
+            <div class="model-opt-desc">Native audio dialog · Cảm xúc tự nhiên</div>
+          </div>
+          <span class="model-badge-pill badge-new">NATIVE</span>
+        </div>
+        <div class="model-opt" data-model="gemini-3.1-flash-tts-preview" data-type="tts" onclick="selectModel(this,'voice')">
+          <div class="model-opt-dot"></div>
+          <div class="model-opt-info">
+            <div class="model-opt-name">Gemini 3.1 Flash TTS</div>
+            <div class="model-opt-desc">Text-to-speech REST · Ổn định · Miễn phí</div>
+          </div>
+          <span class="model-badge-pill badge-fast">TTS</span>
+        </div>
+        <div class="model-opt" data-model="gemini-2.5-flash-preview-tts" data-type="tts" onclick="selectModel(this,'voice')">
+          <div class="model-opt-dot"></div>
+          <div class="model-opt-info">
+            <div class="model-opt-name">Gemini 2.5 Flash Preview TTS</div>
+            <div class="model-opt-desc">TTS fallback · Đáng tin cậy</div>
+          </div>
+          <span class="model-badge-pill badge-free">FREE</span>
+        </div>
+      </div>
+
+      <!-- Chat model list (hidden by default) -->
+      <div class="model-list" id="chat-model-list" style="display:none">
+        <div class="model-opt selected" data-model="gemini-2.5-flash-lite" onclick="selectModel(this,'chat')">
+          <div class="model-opt-dot"></div>
+          <div class="model-opt-info">
+            <div class="model-opt-name">Gemini 2.5 Flash Lite</div>
+            <div class="model-opt-desc">Nhanh nhất · Tiết kiệm token · Khuyên dùng</div>
+          </div>
+          <span class="model-badge-pill badge-fast">LITE</span>
+        </div>
+        <div class="model-opt" data-model="gemma-4-27b-it" onclick="selectModel(this,'chat')">
+          <div class="model-opt-dot"></div>
+          <div class="model-opt-info">
+            <div class="model-opt-name">Gemma 4 31B</div>
+            <div class="model-opt-desc">Mã nguồn mở · Miễn phí · Hiểu biết rộng</div>
+          </div>
+          <span class="model-badge-pill badge-free">OPEN</span>
+        </div>
+        <div class="model-opt" data-model="gemini-2.5-flash" onclick="selectModel(this,'chat')">
+          <div class="model-opt-dot"></div>
+          <div class="model-opt-info">
+            <div class="model-opt-name">Gemini 2.5 Flash</div>
+            <div class="model-opt-desc">Cân bằng chất lượng & tốc độ</div>
+          </div>
+          <span class="model-badge-pill badge-new">FLASH</span>
+        </div>
+        <div class="model-opt" data-model="gemini-2.5-flash-preview-05-20" onclick="selectModel(this,'chat')">
+          <div class="model-opt-dot"></div>
+          <div class="model-opt-info">
+            <div class="model-opt-name">Gemini 2.5 Flash Preview</div>
+            <div class="model-opt-desc">Phiên bản mới nhất · Tư duy nâng cao</div>
+          </div>
+          <span class="model-badge-pill badge-live">PREVIEW</span>
+        </div>
+        <div class="model-opt" data-model="gemini-1.5-flash" onclick="selectModel(this,'chat')">
+          <div class="model-opt-dot"></div>
+          <div class="model-opt-info">
+            <div class="model-opt-name">Gemini 1.5 Flash</div>
+            <div class="model-opt-desc">Ổn định · Backup khi quota hết</div>
+          </div>
+          <span class="model-badge-pill badge-fast">BACKUP</span>
+        </div>
+      </div>
+    </div>
+
     <button class="go-btn" onclick="startApp()">Bắt đầu trò chuyện →</button>
     <div class="setup-err" id="setup-err">⚠️ API key không hợp lệ</div>
   </div>
@@ -608,10 +788,12 @@ header {
       <div class="header-logo">🎙️</div>
       <div>
         <div class="header-name">Gemini Voice</div>
-        <div class="header-model" id="hdr-model">2.5 Flash · TTS</div>
       </div>
     </div>
     <div class="header-right">
+      <button class="hdr-model-btn" onclick="openModelModal()" title="Đổi model">
+        ⚙️ <span id="hdr-model">Loading...</span>
+      </button>
       <div class="status-pill">
         <div class="status-dot" id="status-dot"></div>
         <span id="status-txt" style="font-family:'DM Mono',monospace">Sẵn sàng</span>
@@ -619,6 +801,104 @@ header {
       <button class="clear-btn" onclick="clearChat()">Xóa chat</button>
     </div>
   </header>
+
+  <!-- Model change modal -->
+  <div class="model-modal-overlay hidden" id="model-modal-overlay" onclick="closeModelModal(event)">
+    <div class="model-modal" style="position:relative">
+      <div class="model-modal-title">⚙️ Đổi Model</div>
+      <div class="model-modal-sub">Chọn model cho chat và voice. Thay đổi có hiệu lực ngay.</div>
+
+      <div style="margin-bottom:8px">
+        <div class="field-label" style="margin-bottom:8px">🎙️ Voice Model</div>
+        <div class="model-list" id="modal-voice-list">
+          <div class="model-opt selected" data-model="gemini-3.1-flash-live-preview" data-type="live" onclick="selectModalModel(this,'voice')">
+            <div class="model-opt-dot"></div>
+            <div class="model-opt-info">
+              <div class="model-opt-name">Gemini 3 Flash Live</div>
+              <div class="model-opt-desc">Giọng thật · Độ trễ thấp</div>
+            </div>
+            <span class="model-badge-pill badge-live">LIVE</span>
+          </div>
+          <div class="model-opt" data-model="gemini-2.5-flash-native-audio-preview-12-2025" data-type="live" onclick="selectModalModel(this,'voice')">
+            <div class="model-opt-dot"></div>
+            <div class="model-opt-info">
+              <div class="model-opt-name">Gemini 2.5 Native Audio</div>
+              <div class="model-opt-desc">Native dialog · Cảm xúc</div>
+            </div>
+            <span class="model-badge-pill badge-new">NATIVE</span>
+          </div>
+          <div class="model-opt" data-model="gemini-3.1-flash-tts-preview" data-type="tts" onclick="selectModalModel(this,'voice')">
+            <div class="model-opt-dot"></div>
+            <div class="model-opt-info">
+              <div class="model-opt-name">Gemini 3.1 Flash TTS</div>
+              <div class="model-opt-desc">TTS REST · Ổn định</div>
+            </div>
+            <span class="model-badge-pill badge-fast">TTS</span>
+          </div>
+          <div class="model-opt" data-model="gemini-2.5-flash-preview-tts" data-type="tts" onclick="selectModalModel(this,'voice')">
+            <div class="model-opt-dot"></div>
+            <div class="model-opt-info">
+              <div class="model-opt-name">Gemini 2.5 Flash TTS</div>
+              <div class="model-opt-desc">TTS preview · Fallback</div>
+            </div>
+            <span class="model-badge-pill badge-free">FREE</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:16px">
+        <div class="field-label" style="margin-bottom:8px">💬 Chat Model</div>
+        <div class="model-list" id="modal-chat-list">
+          <div class="model-opt selected" data-model="gemini-2.5-flash-lite" onclick="selectModalModel(this,'chat')">
+            <div class="model-opt-dot"></div>
+            <div class="model-opt-info">
+              <div class="model-opt-name">Gemini 2.5 Flash Lite</div>
+              <div class="model-opt-desc">Nhanh · Tiết kiệm token</div>
+            </div>
+            <span class="model-badge-pill badge-fast">LITE</span>
+          </div>
+          <div class="model-opt" data-model="gemma-4-27b-it" onclick="selectModalModel(this,'chat')">
+            <div class="model-opt-dot"></div>
+            <div class="model-opt-info">
+              <div class="model-opt-name">Gemma 4 31B</div>
+              <div class="model-opt-desc">Mã nguồn mở · Miễn phí</div>
+            </div>
+            <span class="model-badge-pill badge-free">OPEN</span>
+          </div>
+          <div class="model-opt" data-model="gemini-2.5-flash" onclick="selectModalModel(this,'chat')">
+            <div class="model-opt-dot"></div>
+            <div class="model-opt-info">
+              <div class="model-opt-name">Gemini 2.5 Flash</div>
+              <div class="model-opt-desc">Cân bằng chất lượng & tốc độ</div>
+            </div>
+            <span class="model-badge-pill badge-new">FLASH</span>
+          </div>
+          <div class="model-opt" data-model="gemini-2.5-flash-preview-05-20" onclick="selectModalModel(this,'chat')">
+            <div class="model-opt-dot"></div>
+            <div class="model-opt-info">
+              <div class="model-opt-name">Gemini 2.5 Flash Preview</div>
+              <div class="model-opt-desc">Mới nhất · Tư duy nâng cao</div>
+            </div>
+            <span class="model-badge-pill badge-live">PREVIEW</span>
+          </div>
+          <div class="model-opt" data-model="gemini-1.5-flash" onclick="selectModalModel(this,'chat')">
+            <div class="model-opt-dot"></div>
+            <div class="model-opt-info">
+              <div class="model-opt-name">Gemini 1.5 Flash</div>
+              <div class="model-opt-desc">Ổn định · Backup</div>
+            </div>
+            <span class="model-badge-pill badge-fast">BACKUP</span>
+          </div>
+        </div>
+      </div>
+
+      <button onclick="closeModelModal()" style="
+        margin-top:20px; width:100%; background:var(--ink); color:var(--paper);
+        border:none; border-radius:10px; padding:12px; font-family:'Outfit',sans-serif;
+        font-size:14px; font-weight:600; cursor:pointer;
+      ">Xong ✓</button>
+    </div>
+  </div>
 
   <div id="chat-area">
     <div class="welcome" id="welcome">
@@ -681,29 +961,56 @@ let volAnim = null;
 
 // ═══ MODEL CONFIG ═══
 
-// Live API models (WebSocket BidiGenerateContent) — dùng cho TTS ưu tiên cao nhất
-// Tên model chính xác theo Google docs tháng 5/2026
-const LIVE_MODELS = [
-  'gemini-3.1-flash-live-preview',               // Gemini 3 Flash Live (mới nhất)
-  'gemini-2.5-flash-native-audio-preview-12-2025', // Gemini 2.5 Flash Native Audio Dialog
-];
+// Tất cả voice models (Live WebSocket + TTS REST)
+const ALL_VOICE_MODELS = {
+  'gemini-3.1-flash-live-preview':                 { type: 'live', label: 'Gemini 3 Flash Live' },
+  'gemini-2.5-flash-native-audio-preview-12-2025': { type: 'live', label: 'Gemini 2.5 Native Audio' },
+  'gemini-3.1-flash-tts-preview':                  { type: 'tts',  label: 'Gemini 3.1 Flash TTS' },
+  'gemini-2.5-flash-preview-tts':                  { type: 'tts',  label: 'Gemini 2.5 Flash TTS' },
+  'gemini-2.5-pro-preview-tts':                    { type: 'tts',  label: 'Gemini 2.5 Pro TTS' },
+};
 
-// TTS REST models — fallback nếu Live API lỗi
-const TTS_MODELS = [
-  'gemini-3.1-flash-tts-preview',
-  'gemini-2.5-flash-preview-tts',
-  'gemini-2.5-pro-preview-tts',
-];
+// Tất cả chat models
+const ALL_CHAT_MODELS = {
+  'gemini-2.5-flash-lite':         'Gemini 2.5 Flash Lite',
+  'gemma-4-27b-it':                'Gemma 4 31B',
+  'gemini-2.5-flash':              'Gemini 2.5 Flash',
+  'gemini-2.5-flash-preview-05-20':'Gemini 2.5 Flash Preview',
+  'gemini-1.5-flash':              'Gemini 1.5 Flash',
+};
 
-// Chat model options - fallback khi hết token/quota
-const CHAT_MODELS = [
-  'gemini-2.5-flash',
-  'gemini-2.5-flash-preview-05-20',
-  'gemini-2.5-flash-lite',
-  'gemini-3-flash-preview',
-  'gemini-3.1-flash-lite-preview',
-  'gemini-1.5-flash'
-];
+// Model được chọn (thay đổi khi user chọn)
+let SELECTED_VOICE_MODEL = 'gemini-3.1-flash-live-preview';
+let SELECTED_VOICE_TYPE  = 'live'; // 'live' | 'tts'
+let SELECTED_CHAT_MODEL  = 'gemini-2.5-flash-lite';
+
+// Fallback chains (thêm các model khác nếu model chính lỗi)
+function getVoiceFallbackChain() {
+  // Bắt đầu từ model được chọn, rồi thêm fallback
+  const chain = [];
+  // 1. model được chọn
+  chain.push({ model: SELECTED_VOICE_MODEL, type: SELECTED_VOICE_TYPE });
+  // 2. live fallback nếu chọn live
+  if (SELECTED_VOICE_TYPE === 'live') {
+    if (SELECTED_VOICE_MODEL !== 'gemini-3.1-flash-live-preview')
+      chain.push({ model: 'gemini-3.1-flash-live-preview', type: 'live' });
+    if (SELECTED_VOICE_MODEL !== 'gemini-2.5-flash-native-audio-preview-12-2025')
+      chain.push({ model: 'gemini-2.5-flash-native-audio-preview-12-2025', type: 'live' });
+  }
+  // 3. TTS REST fallback luôn có
+  chain.push({ model: 'gemini-3.1-flash-tts-preview', type: 'tts' });
+  chain.push({ model: 'gemini-2.5-flash-preview-tts', type: 'tts' });
+  // Bỏ trùng
+  const seen = new Set();
+  return chain.filter(c => { if (seen.has(c.model)) return false; seen.add(c.model); return true; });
+}
+
+function getChatFallbackChain() {
+  const chain = [SELECTED_CHAT_MODEL];
+  const defaults = ['gemini-2.5-flash-lite','gemini-2.5-flash','gemma-4-27b-it','gemini-1.5-flash'];
+  for (const m of defaults) if (!chain.includes(m)) chain.push(m);
+  return chain;
+}
 
 // WebSocket URL cho Live API
 const LIVE_WS_URL = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent`;
@@ -829,6 +1136,81 @@ function selectVoice(el) {
   VOICE = el.dataset.voice;
 }
 
+// Chuyển tab Voice/Chat trong setup
+function switchModelTab(tab) {
+  document.getElementById('tab-voice').classList.toggle('active', tab === 'voice');
+  document.getElementById('tab-chat').classList.toggle('active', tab === 'chat');
+  document.getElementById('voice-model-list').style.display = tab === 'voice' ? 'flex' : 'none';
+  document.getElementById('chat-model-list').style.display  = tab === 'chat'  ? 'flex' : 'none';
+}
+
+// Chọn model trong setup screen
+function selectModel(el, type) {
+  const list = type === 'voice' ? 'voice-model-list' : 'chat-model-list';
+  document.querySelectorAll(`#${list} .model-opt`).forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  if (type === 'voice') {
+    SELECTED_VOICE_MODEL = el.dataset.model;
+    SELECTED_VOICE_TYPE  = el.dataset.type || 'tts';
+    // Sync modal too
+    syncModalSelection('voice', SELECTED_VOICE_MODEL);
+  } else {
+    SELECTED_CHAT_MODEL = el.dataset.model;
+    syncModalSelection('chat', SELECTED_CHAT_MODEL);
+  }
+}
+
+// Chọn model trong modal (header)
+function selectModalModel(el, type) {
+  const list = type === 'voice' ? 'modal-voice-list' : 'modal-chat-list';
+  document.querySelectorAll(`#${list} .model-opt`).forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  if (type === 'voice') {
+    SELECTED_VOICE_MODEL = el.dataset.model;
+    SELECTED_VOICE_TYPE  = el.dataset.type || 'tts';
+    syncSetupSelection('voice', SELECTED_VOICE_MODEL);
+  } else {
+    SELECTED_CHAT_MODEL = el.dataset.model;
+    syncSetupSelection('chat', SELECTED_CHAT_MODEL);
+  }
+  updateHdrModel();
+}
+
+// Sync setup screen selection to match modal
+function syncSetupSelection(type, model) {
+  const list = type === 'voice' ? 'voice-model-list' : 'chat-model-list';
+  document.querySelectorAll(`#${list} .model-opt`).forEach(o => {
+    o.classList.toggle('selected', o.dataset.model === model);
+  });
+}
+
+// Sync modal selection to match setup
+function syncModalSelection(type, model) {
+  const list = type === 'voice' ? 'modal-voice-list' : 'modal-chat-list';
+  document.querySelectorAll(`#${list} .model-opt`).forEach(o => {
+    o.classList.toggle('selected', o.dataset.model === model);
+  });
+}
+
+function updateHdrModel() {
+  const vLabel = ALL_VOICE_MODELS[SELECTED_VOICE_MODEL]?.label || SELECTED_VOICE_MODEL;
+  const cLabel = ALL_CHAT_MODELS[SELECTED_CHAT_MODEL] || SELECTED_CHAT_MODEL;
+  const vType  = SELECTED_VOICE_TYPE === 'live' ? '⚡' : '🔊';
+  document.getElementById('hdr-model').textContent = `${vType}${vLabel} · 💬${cLabel}`;
+}
+
+function openModelModal() {
+  document.getElementById('model-modal-overlay').classList.remove('hidden');
+}
+
+function closeModelModal(e) {
+  if (!e || e.target === document.getElementById('model-modal-overlay') || !e.target.closest) {
+    document.getElementById('model-modal-overlay').classList.add('hidden');
+  } else if (!e.target.closest('.model-modal')) {
+    document.getElementById('model-modal-overlay').classList.add('hidden');
+  }
+}
+
 function startApp() {
   const k = document.getElementById('api-key').value.trim();
   if (!k || !k.startsWith('AIza')) {
@@ -838,7 +1220,7 @@ function startApp() {
   KEY = k;
   document.getElementById('setup').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
-  document.getElementById('hdr-model').textContent = `2.5 Flash · ${TTS_MODELS[0]} · Voice: ${VOICE}`;
+  updateHdrModel();
   initSpeechRecognition();
   setTimeout(() => addSystemGreeting(), 500);
 }
@@ -990,45 +1372,35 @@ async function processUserInput(text) {
   const msgId = 'msg_' + Date.now();
   addMsg('ai', aiText, msgId, false);
 
-  // Step 2: Convert to speech — thử Live API trước, fallback sang REST TTS
+  // Step 2: Convert to speech — dùng model được chọn, fallback tự động
   setStatus('busy', 'Đang tổng hợp giọng nói...');
 
   let audioB64 = null;
+  const voiceChain = getVoiceFallbackChain();
 
-  // 2a: Thử Live API (WebSocket) với Native Audio models
-  for (const liveModel of LIVE_MODELS) {
+  for (const { model, type } of voiceChain) {
     try {
-      updateTypingStatus(`Đang kết nối ${liveModel}...`);
-      audioB64 = await callGeminiLive(aiText, liveModel);
+      const shortName = ALL_VOICE_MODELS[model]?.label || model;
+      updateTypingStatus(`Đang tạo giọng (${shortName})...`);
+
+      if (type === 'live') {
+        audioB64 = await callGeminiLive(aiText, model);
+      } else {
+        audioB64 = await callGeminiTTS(aiText, model);
+      }
+
       if (audioB64) {
-        document.getElementById('hdr-model').textContent = `Live: ${liveModel} · ${VOICE}`;
-        console.log(`[Live] Success with ${liveModel}`);
+        const typeIcon = type === 'live' ? '⚡' : '🔊';
+        document.getElementById('hdr-model').textContent =
+          `${typeIcon}${shortName} · 💬${ALL_CHAT_MODELS[SELECTED_CHAT_MODEL] || SELECTED_CHAT_MODEL}`;
+        console.log(`[Voice] OK: ${model} (${type})`);
         break;
       }
     } catch (err) {
       const msg = err.message || '';
-      console.log(`[Live] ${liveModel} failed:`, msg.replace('SKIP:', ''));
+      console.log(`[Voice] ${model} failed:`, msg.replace('SKIP:', ''));
       if (msg.startsWith('SKIP:')) continue;
       break;
-    }
-  }
-
-  // 2b: Fallback sang REST TTS nếu Live API thất bại
-  if (!audioB64) {
-    for (const ttsModel of TTS_MODELS) {
-      try {
-        updateTypingStatus(`Đang tạo giọng (${ttsModel})...`);
-        audioB64 = await callGeminiTTS(aiText, ttsModel);
-        if (audioB64) {
-          document.getElementById('hdr-model').textContent = `TTS: ${ttsModel} · ${VOICE}`;
-          break;
-        }
-      } catch (err) {
-        const msg = err.message || '';
-        console.log(`[TTS] ${ttsModel} failed:`, msg.replace('SKIP:', ''));
-        if (msg.startsWith('SKIP:')) continue;
-        break;
-      }
     }
   }
 
@@ -1055,7 +1427,7 @@ async function callGeminiChat(userText) {
 - Tránh dùng markdown, bullet points, ký hiệu đặc biệt vì sẽ được đọc thành tiếng
 - Câu trả lời phải nghe hay khi được đọc to`;
 
-  for (const model of CHAT_MODELS) {
+  for (const model of getChatFallbackChain()) {
     try {
       // thinking_config chỉ hỗ trợ trên Gemini 2.5 Flash/Pro
       const supportsThinking = model.startsWith('gemini-2.5-flash') || model.startsWith('gemini-2.5-pro');
@@ -1377,31 +1749,16 @@ async function addSystemGreeting() {
   addMsg('ai', text, 'greeting', false);
 
   let audio = null;
-
-  // Thử Live API trước
-  for (const liveModel of LIVE_MODELS) {
+  for (const { model, type } of getVoiceFallbackChain()) {
     try {
-      audio = await callGeminiLive(text, liveModel);
-      if (audio) { console.log('[Greeting] Live OK:', liveModel); break; }
+      audio = type === 'live'
+        ? await callGeminiLive(text, model)
+        : await callGeminiTTS(text, model);
+      if (audio) { console.log('[Greeting] OK:', model); break; }
     } catch(e) {
       const msg = e.message || '';
-      console.log('[Greeting] Live failed:', liveModel, msg.replace('SKIP:', ''));
       if (msg.startsWith('SKIP:')) continue;
       break;
-    }
-  }
-
-  // Fallback sang TTS REST
-  if (!audio) {
-    for (const ttsModel of TTS_MODELS) {
-      try {
-        audio = await callGeminiTTS(text, ttsModel);
-        if (audio) { console.log('[Greeting] TTS OK:', ttsModel); break; }
-      } catch(e) {
-        const msg = e.message || '';
-        if (msg.startsWith('SKIP:')) continue;
-        break;
-      }
     }
   }
 
