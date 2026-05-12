@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Vibe Call</title>
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&family=DM+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #13131a;
+    --surface2: #1c1c28;
+    --border2: rgba(255,255,255,0.13);
+    --accent: #7c6ff7;
+    --accent2: #a78bfa;
+    --green: #34d399;
+    --red: #f87171;
+    --amber: #fbbf24;
+    --text: #e8e8f0;
+    --muted: #6b6b80;
+    --mono: 'DM Mono', monospace;
+    --sans: 'DM Sans', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100dvh; overflow: hidden; }
+
+  .screen { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; overflow-y: auto; transition: opacity .35s, transform .35s; z-index: 1; }
+  .screen.hidden { opacity: 0; pointer-events: none; transform: translateY(10px); }
+
+  /* HOME */
+  .logo { font-size: 12px; font-weight: 500; letter-spacing: .2em; text-transform: uppercase; color: var(--accent2); margin-bottom: 28px; }
+  h1 { font-size: clamp(26px, 7vw, 46px); font-weight: 300; line-height: 1.15; text-align: center; margin-bottom: 6px; letter-spacing: -.02em; }
+  h1 em { font-style: italic; color: var(--accent2); }
+  .sub { font-size: 13px; color: var(--muted); text-align: center; margin-bottom: 28px; }
+
+  .card { background: var(--surface); border: 1px solid var(--border2); border-radius: 14px; padding: 16px 18px; width: 100%; max-width: 400px; margin-bottom: 10px; }
+  .lbl { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 7px; }
+  .id-row { font-family: var(--mono); font-size: 17px; font-weight: 500; display: flex; align-items: center; justify-content: space-between; gap: 10px; word-break: break-all; }
+  .share-row { display: flex; align-items: center; gap: 10px; }
+  .share-txt { font-size: 12px; color: var(--muted); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .copy-btn { background: var(--surface2); border: 1px solid var(--border2); color: var(--muted); border-radius: 7px; padding: 5px 11px; font-size: 12px; font-family: var(--sans); cursor: pointer; white-space: nowrap; transition: all .2s; flex-shrink: 0; }
+  .copy-btn:hover { color: var(--text); border-color: var(--accent); }
+  .copy-btn.copied { color: var(--green); border-color: var(--green); }
+
+  .divider { width: 100%; max-width: 400px; display: flex; align-items: center; gap: 10px; margin-bottom: 10px; color: var(--muted); font-size: 12px; }
+  .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border2); }
+
+  .input-row { width: 100%; max-width: 400px; display: flex; gap: 8px; margin-bottom: 10px; }
+  input[type=text] { flex: 1; background: var(--surface); border: 1px solid var(--border2); border-radius: 11px; padding: 12px 15px; font-family: var(--mono); font-size: 14px; color: var(--text); outline: none; transition: border-color .2s; min-width: 0; }
+  input[type=text]::placeholder { color: var(--muted); font-family: var(--sans); font-size: 13px; }
+  input[type=text]:focus { border-color: var(--accent); }
+
+  .btn-call { background: var(--accent); border: none; border-radius: 11px; padding: 12px 18px; color: #fff; font-family: var(--sans); font-size: 14px; font-weight: 500; cursor: pointer; transition: all .2s; white-space: nowrap; }
+  .btn-call:hover { background: var(--accent2); }
+  .btn-call:disabled { opacity: .4; cursor: not-allowed; }
+
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 13px; border-radius: 999px; font-size: 12px; border: 1px solid var(--border2); color: var(--muted); transition: all .3s; margin-bottom: 8px; }
+  .chip .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); transition: background .3s; }
+  .chip.ready { color: var(--green); border-color: rgba(52,211,153,.25); }
+  .chip.ready .dot { background: var(--green); box-shadow: 0 0 5px var(--green); }
+  .chip.calling .dot { background: var(--accent2); animation: pulse 1.2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+  /* TURN banner */
+  .turn-banner { width: 100%; max-width: 400px; background: rgba(251,191,36,.07); border: 1px solid rgba(251,191,36,.2); border-radius: 12px; padding: 12px 15px; margin-bottom: 10px; font-size: 12px; color: var(--amber); line-height: 1.7; display: none; }
+  .turn-banner a { color: var(--accent2); }
+  .turn-input-row { display: flex; gap: 7px; margin-top: 8px; flex-wrap: wrap; }
+  .turn-input-row input { flex: 1; min-width: 90px; padding: 7px 10px; font-size: 12px; border-radius: 7px; }
+  .btn-sm { background: var(--surface2); border: 1px solid var(--border2); border-radius: 7px; padding: 7px 12px; font-size: 12px; font-family: var(--sans); color: var(--text); cursor: pointer; white-space: nowrap; }
+  .btn-sm:hover { border-color: var(--accent); }
+
+  /* debug */
+  .debug-panel { width: 100%; max-width: 400px; background: var(--surface); border: 1px solid var(--border2); border-radius: 10px; overflow: hidden; margin-top: 4px; }
+  .debug-hdr { display: flex; align-items: center; justify-content: space-between; padding: 9px 13px; cursor: pointer; font-size: 11px; color: var(--muted); user-select: none; }
+  .debug-hdr:hover { color: var(--text); }
+  .debug-bd { padding: 0 13px 10px; display: none; }
+  .debug-bd.open { display: block; }
+  .ice-log { font-family: var(--mono); font-size: 10px; line-height: 1.65; color: var(--muted); max-height: 110px; overflow-y: auto; }
+  .ice-log .ok { color: var(--green); }
+  .ice-log .warn { color: var(--amber); }
+  .ice-log .err { color: var(--red); }
+
+  /* CALL SCREEN */
+  #callScreen { padding: 0; justify-content: flex-end; background: #000; }
+  #remoteVideo { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #0a0a0f; z-index: 0; }
+  #localVideo { position: fixed; top: 14px; right: 14px; width: clamp(88px, 25vw, 135px); aspect-ratio: 9/16; border-radius: 13px; object-fit: cover; border: 2px solid rgba(255,255,255,.15); z-index: 10; background: #111; cursor: pointer; box-shadow: 0 6px 24px rgba(0,0,0,.6); transition: transform .2s; }
+  #localVideo:active { transform: scale(.96); }
+
+  .call-overlay { position: relative; z-index: 10; width: 100%; padding: 10px 14px max(18px, env(safe-area-inset-bottom)); background: linear-gradient(transparent, rgba(0,0,0,.88)); }
+  .call-info { text-align: center; margin-bottom: 14px; }
+  .call-peer { font-family: var(--mono); font-size: 11px; color: rgba(255,255,255,.4); margin-bottom: 3px; }
+  .call-timer { font-size: 24px; font-weight: 300; letter-spacing: .06em; color: #fff; }
+  .call-ice { font-size: 10px; color: rgba(255,255,255,.3); margin-top: 2px; }
+
+  .controls { display: flex; justify-content: center; align-items: center; gap: 13px; }
+  .ctrl { width: 52px; height: 52px; border-radius: 50%; border: 1px solid rgba(255,255,255,.2); background: rgba(255,255,255,.1); backdrop-filter: blur(12px); color: #fff; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .2s; -webkit-tap-highlight-color: transparent; }
+  .ctrl:active { transform: scale(.91); }
+  .ctrl.off { background: rgba(255,255,255,.2); border-color: rgba(255,255,255,.35); }
+  .ctrl.end { width: 62px; height: 62px; background: var(--red); border-color: var(--red); font-size: 23px; }
+
+  .placeholder { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; z-index: 1; color: rgba(255,255,255,.3); font-size: 13px; pointer-events: none; }
+
+  /* incoming */
+  #incomingModal { position: fixed; inset: 0; background: rgba(0,0,0,.7); backdrop-filter: blur(12px); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 20px; opacity: 0; pointer-events: none; transition: opacity .3s; }
+  #incomingModal.show { opacity: 1; pointer-events: all; }
+  .inc-card { background: var(--surface); border: 1px solid var(--border2); border-radius: 22px; padding: 26px 22px; width: 100%; max-width: 300px; text-align: center; animation: up .3s ease; }
+  @keyframes up { from{transform:translateY(28px);opacity:0} to{transform:none;opacity:1} }
+  .inc-avatar { width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--accent2)); display: flex; align-items: center; justify-content: center; font-size: 24px; margin: 0 auto 12px; animation: ring 1.5s ease infinite; }
+  @keyframes ring { 0%,100%{box-shadow:0 0 0 0 rgba(124,111,247,.5)} 50%{box-shadow:0 0 0 12px rgba(124,111,247,0)} }
+  .inc-lbl { font-size: 11px; color: var(--muted); margin-bottom: 5px; }
+  .inc-id { font-family: var(--mono); font-size: 15px; font-weight: 500; margin-bottom: 22px; word-break: break-all; }
+  .inc-btns { display: flex; gap: 10px; }
+  .btn-dec { flex:1; padding:12px; background:rgba(248,113,113,.12); border:1px solid rgba(248,113,113,.28); border-radius:11px; color:var(--red); font-family:var(--sans); font-size:14px; font-weight:500; cursor:pointer; }
+  .btn-acc { flex:1; padding:12px; background:rgba(52,211,153,.12); border:1px solid rgba(52,211,153,.28); border-radius:11px; color:var(--green); font-family:var(--sans); font-size:14px; font-weight:500; cursor:pointer; }
+
+  #toast { position: fixed; bottom: 72px; left: 50%; transform: translateX(-50%) translateY(18px); background: var(--surface2); border: 1px solid var(--border2); border-radius: 999px; padding: 8px 16px; font-size: 12px; color: var(--text); z-index: 999; opacity: 0; transition: all .3s; white-space: nowrap; pointer-events: none; max-width: 90vw; text-align: center; }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  .spinner { width: 15px; height: 15px; border: 2px solid rgba(255,255,255,.12); border-top-color: var(--accent2); border-radius: 50%; animation: spin .7s linear infinite; display: inline-block; }
+  @keyframes spin { to{transform:rotate(360deg)} }
+</style>
+</head>
+<body>
+
+<!-- HOME -->
+<div class="screen" id="homeScreen">
+  <div class="logo">Vibe Call</div>
+  <h1>Call anyone,<br><em>anywhere.</em></h1>
+  <p class="sub">Peer-to-peer · No account · No server</p>
+
+  <div class="card">
+    <div class="lbl">Your ID — chia sẻ cho người kia</div>
+    <div class="id-row">
+      <span id="myIdDisplay"><span class="spinner"></span></span>
+      <button class="copy-btn" id="copyIdBtn" onclick="copyMyId()">Copy ID</button>
+    </div>
+  </div>
+
+  <div class="card" id="shareLinkCard" style="display:none">
+    <div class="lbl">Hoặc gửi link — người kia mở là gọi ngay</div>
+    <div class="share-row">
+      <span class="share-txt" id="shareLinkText"></span>
+      <button class="copy-btn" id="copyLinkBtn" onclick="copyLink()">Copy link</button>
+    </div>
+  </div>
+
+  <div class="turn-banner" id="turnBanner">
+    ⚠️ Kết nối P2P thất bại — mạng của bạn cần TURN server để relay.<br>
+    Đăng ký free tại <a href="https://www.expressturn.com" target="_blank">expressturn.com</a>
+    hoặc <a href="https://www.metered.ca" target="_blank">metered.ca</a> → lấy username/password:
+    <div class="turn-input-row">
+      <input type="text" id="turnHost" placeholder="host (vd: relay.expressturn.com)" style="flex:2;min-width:140px" />
+      <input type="text" id="turnUser" placeholder="username" style="flex:1;min-width:80px" />
+      <input type="text" id="turnPass" placeholder="password" style="flex:1;min-width:80px" />
+      <button class="btn-sm" onclick="saveTurn()">Lưu & thử lại</button>
+    </div>
+  </div>
+
+  <div class="divider" style="max-width:400px;width:100%">gọi cho người khác</div>
+
+  <div class="input-row">
+    <input type="text" id="peerIdInput" placeholder="Nhập ID của người kia..." autocomplete="off" autocorrect="off" spellcheck="false" />
+    <button class="btn-call" id="callBtn" onclick="startCall()" disabled>Gọi</button>
+  </div>
+
+  <div class="chip" id="chip"><div class="dot"></div><span id="chipTxt">Đang kết nối...</span></div>
+
+  <div class="debug-panel">
+    <div class="debug-hdr" onclick="toggleDebug()">
+      <span>🔍 ICE / connection log</span><span id="dbgArrow">▼</span>
+    </div>
+    <div class="debug-bd" id="dbgBd">
+      <div class="ice-log" id="iceLog"><span class="warn">Chờ log...</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- CALL SCREEN -->
+<div class="screen hidden" id="callScreen">
+  <video id="remoteVideo" autoplay playsinline></video>
+  <div class="placeholder" id="placeholder"><span style="font-size:40px;opacity:.35">👤</span><span>Đang chờ video...</span></div>
+  <video id="localVideo" autoplay muted playsinline></video>
+  <div class="call-overlay">
+    <div class="call-info">
+      <div class="call-peer" id="callPeer"></div>
+      <div class="call-timer" id="callTimer">00:00</div>
+      <div class="call-ice" id="callIce"></div>
+    </div>
+    <div class="controls">
+      <button class="ctrl" id="micBtn" onclick="toggleMic()">🎤</button>
+      <button class="ctrl end" onclick="endCall()">📵</button>
+      <button class="ctrl" id="camBtn" onclick="toggleCam()">📷</button>
+    </div>
+  </div>
+</div>
+
+<!-- INCOMING -->
+<div id="incomingModal">
+  <div class="inc-card">
+    <div class="inc-avatar">📞</div>
+    <div class="inc-lbl">Cuộc gọi đến từ</div>
+    <div class="inc-id" id="incId"></div>
+    <div class="inc-btns">
+      <button class="btn-dec" onclick="declineCall()">Từ chối</button>
+      <button class="btn-acc" onclick="acceptCall()">Nghe máy</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+let peer, localStream, currentCall, pendingCall, myId;
+let micOn=true, camOn=true, timerInterval, callSeconds=0;
+let failCount=0, debugOpen=false;
+let customTurn=null;
+try { customTurn=JSON.parse(localStorage.getItem('vibe_turn')); } catch(e){}
+
+function getIceServers(){
+  const base=[
+    {urls:'stun:stun.l.google.com:19302'},
+    {urls:'stun:stun1.l.google.com:19302'},
+    {urls:'stun:stun2.l.google.com:19302'},
+    {urls:'stun:stun3.l.google.com:19302'},
+    {urls:'stun:stun4.l.google.com:19302'},
+    // freestun — public TURN không cần account (ổn định hơn openrelay)
+    {urls:'turn:freestun.net:3478', username:'free', credential:'free'},
+    {urls:'turns:freestun.net:5349', username:'free', credential:'free'},
+    // Cloudflare STUN
+    {urls:'stun:stun.cloudflare.com:3478'},
+  ];
+  if(customTurn){
+    base.push(
+      {urls:'turn:'+customTurn.host+':3478', username:customTurn.user, credential:customTurn.pass},
+      {urls:'turn:'+customTurn.host+':80', username:customTurn.user, credential:customTurn.pass},
+      {urls:'turns:'+customTurn.host+':443', username:customTurn.user, credential:customTurn.pass},
+    );
+    log('ok','✅ Custom TURN: '+customTurn.host);
+  }
+  return base;
+}
+
+async function init(){
+  try {
+    localStream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+    document.getElementById('localVideo').srcObject=localStream;
+    log('ok','✅ Camera & mic OK');
+  } catch(e){ log('err','❌ Camera: '+e.message); showToast('Không thể truy cập camera/mic'); }
+
+  const params=new URLSearchParams(location.search);
+  const autoCall=params.get('call');
+  connectPeer(autoCall);
+}
+
+function connectPeer(autoCall){
+  log('warn','⏳ Kết nối PeerJS...');
+  peer=new Peer(undefined,{
+    debug:0,
+    config:{iceServers:getIceServers(), iceTransportPolicy:'all'}
+  });
+
+  peer.on('open',id=>{
+    myId=id;
+    document.getElementById('myIdDisplay').textContent=id;
+    document.getElementById('callBtn').disabled=false;
+    const link=location.origin+location.pathname+'?call='+id;
+    document.getElementById('shareLinkText').textContent=link;
+    document.getElementById('shareLinkCard').style.display='';
+    setChip('ready','Sẵn sàng nhận cuộc gọi');
+    log('ok','✅ Peer ID: '+id);
+    if(autoCall && autoCall!==id){
+      document.getElementById('peerIdInput').value=autoCall;
+      setTimeout(startCall,700);
+    }
+  });
+
+  peer.on('call',inc=>{
+    pendingCall=inc;
+    document.getElementById('incId').textContent=inc.peer;
+    document.getElementById('incomingModal').classList.add('show');
+    log('warn','📲 Cuộc gọi đến từ: '+inc.peer);
+  });
+
+  peer.on('disconnected',()=>{
+    log('warn','⚠️ Mất kết nối PeerJS, reconnect...');
+    setTimeout(()=>{ if(!peer.destroyed) peer.reconnect(); },1500);
+  });
+
+  peer.on('error',e=>{
+    log('err','❌ '+e.type+': '+e.message);
+    if(e.type==='peer-unavailable') showToast('Không tìm thấy ID này. Kiểm tra lại.');
+    else showToast('Lỗi: '+e.message);
+    setChip('ready','Sẵn sàng');
+    document.getElementById('callBtn').disabled=false;
+  });
+}
+
+function startCall(){
+  const id=document.getElementById('peerIdInput').value.trim();
+  if(!id){showToast('Nhập ID người kia');return;}
+  if(id===myId){showToast('Không thể gọi chính mình!');return;}
+  if(!localStream){showToast('Chưa có camera');return;}
+  setChip('calling','Đang gọi...');
+  document.getElementById('callBtn').disabled=true;
+  log('warn','📞 Gọi: '+id);
+  const call=peer.call(id,localStream);
+  if(!call){showToast('Không thể tạo cuộc gọi');return;}
+  setupCall(call);
+}
+
+function acceptCall(){
+  document.getElementById('incomingModal').classList.remove('show');
+  if(!pendingCall||!localStream)return;
+  pendingCall.answer(localStream);
+  setupCall(pendingCall);
+  pendingCall=null;
+}
+
+function declineCall(){
+  document.getElementById('incomingModal').classList.remove('show');
+  if(pendingCall){pendingCall.close();pendingCall=null;}
+}
+
+function setupCall(call){
+  currentCall=call;
+  document.getElementById('callPeer').textContent=call.peer;
+
+  call.on('stream',remote=>{
+    log('ok','✅ Remote stream OK!');
+    const rv=document.getElementById('remoteVideo');
+    rv.srcObject=remote;
+    rv.onloadedmetadata=()=>document.getElementById('placeholder').style.display='none';
+    showCallScreen();
+  });
+
+  call.on('close',()=>{log('warn','📵 Đã kết thúc');endCall();});
+  call.on('error',e=>{
+    log('err','❌ Call error: '+e.message);
+    showToast('Lỗi kết nối — xem debug log');
+    failCount++;
+    if(failCount>=1) document.getElementById('turnBanner').style.display='';
+    endCall();
+  });
+
+  // wait for peerConnection
+  const waitPC=()=>{
+    if(call.peerConnection) monitorICE(call.peerConnection);
+    else setTimeout(waitPC,200);
+  };
+  waitPC();
+}
+
+function monitorICE(pc){
+  pc.oniceconnectionstatechange=()=>{
+    const s=pc.iceConnectionState;
+    const cls=s==='connected'||s==='completed'?'ok':s==='failed'?'err':'warn';
+    log(cls,'🧊 ICE state: '+s);
+    document.getElementById('callIce').textContent='ICE: '+s;
+
+    if(s==='connected'||s==='completed'){
+      showCallScreen();
+      // show relay type
+      try{pc.getStats().then(stats=>{stats.forEach(r=>{
+        if(r.type==='candidate-pair'&&(r.selected||r.state==='succeeded')){
+          log('ok','🏆 Loại kết nối: '+(r.relayProtocol?'TURN/'+r.relayProtocol:'direct P2P'));
+        }
+      });});}catch(e){}
+    }
+    if(s==='failed'){
+      log('err','❌ ICE failed — cần TURN server tốt hơn');
+      try{pc.restartIce();}catch(e){}
+      failCount++;
+      document.getElementById('turnBanner').style.display='';
+      showToast('Kết nối thất bại — xem hướng dẫn bên dưới');
+    }
+    if(s==='disconnected'){
+      log('warn','⚠️ ICE mất kết nối tạm thời...');
+    }
+  };
+
+  pc.onicegatheringstatechange=()=>{
+    log('warn','🔍 Gathering: '+pc.iceGatheringState);
+  };
+
+  pc.onicecandidate=e=>{
+    if(e.candidate){
+      const t=e.candidate.type;
+      log('ok','→ Candidate: '+t+(t==='relay'?' (TURN relay)':t==='srflx'?' (STUN)':' (local)'));
+    }
+  };
+}
+
+function showCallScreen(){
+  if(!document.getElementById('callScreen').classList.contains('hidden'))return;
+  document.getElementById('homeScreen').classList.add('hidden');
+  document.getElementById('callScreen').classList.remove('hidden');
+  startTimer();
+}
+
+function endCall(){
+  if(currentCall){try{currentCall.close();}catch(e){}currentCall=null;}
+  stopTimer();
+  document.getElementById('placeholder').style.display='flex';
+  document.getElementById('remoteVideo').srcObject=null;
+  document.getElementById('callScreen').classList.add('hidden');
+  document.getElementById('homeScreen').classList.remove('hidden');
+  setChip('ready','Sẵn sàng');
+  document.getElementById('callBtn').disabled=false;
+  document.getElementById('callIce').textContent='';
+}
+
+function toggleMic(){
+  micOn=!micOn;
+  localStream.getAudioTracks().forEach(t=>t.enabled=micOn);
+  document.getElementById('micBtn').textContent=micOn?'🎤':'🔇';
+  document.getElementById('micBtn').className=micOn?'ctrl':'ctrl off';
+}
+function toggleCam(){
+  camOn=!camOn;
+  localStream.getVideoTracks().forEach(t=>t.enabled=camOn);
+  document.getElementById('camBtn').textContent=camOn?'📷':'🚫';
+  document.getElementById('camBtn').className=camOn?'ctrl':'ctrl off';
+}
+
+document.getElementById('localVideo').addEventListener('click',()=>{
+  const lv=document.getElementById('localVideo'),rv=document.getElementById('remoteVideo');
+  const tmp=lv.srcObject;lv.srcObject=rv.srcObject;rv.srcObject=tmp;
+});
+
+function startTimer(){
+  callSeconds=0;
+  timerInterval=setInterval(()=>{
+    callSeconds++;
+    const m=String(Math.floor(callSeconds/60)).padStart(2,'0');
+    const s=String(callSeconds%60).padStart(2,'0');
+    document.getElementById('callTimer').textContent=m+':'+s;
+  },1000);
+}
+function stopTimer(){clearInterval(timerInterval);document.getElementById('callTimer').textContent='00:00';}
+
+function saveTurn(){
+  const host=document.getElementById('turnHost').value.trim();
+  const user=document.getElementById('turnUser').value.trim();
+  const pass=document.getElementById('turnPass').value.trim();
+  if(!host||!user||!pass){showToast('Điền đủ host, username, password');return;}
+  customTurn={host,user,pass};
+  localStorage.setItem('vibe_turn',JSON.stringify(customTurn));
+  showToast('Đã lưu — đang kết nối lại...');
+  if(peer&&!peer.destroyed)peer.destroy();
+  setTimeout(()=>connectPeer(null),600);
+}
+
+function setChip(state,txt){
+  const c=document.getElementById('chip');
+  c.className='chip'+(state?' '+state:'');
+  document.getElementById('chipTxt').textContent=txt;
+}
+
+function log(cls,msg){
+  const el=document.getElementById('iceLog');
+  const d=document.createElement('div');
+  d.className=cls;
+  const t=new Date().toLocaleTimeString('vi-VN');
+  d.textContent='['+t+'] '+msg;
+  if(el.children.length===1&&el.children[0].tagName==='SPAN')el.innerHTML='';
+  el.appendChild(d);
+  el.scrollTop=el.scrollHeight;
+}
+
+let dbgOpen=false;
+function toggleDebug(){
+  dbgOpen=!dbgOpen;
+  document.getElementById('dbgBd').className='debug-bd'+(dbgOpen?' open':'');
+  document.getElementById('dbgArrow').textContent=dbgOpen?'▲':'▼';
+}
+
+function copyMyId(){
+  if(!myId)return;
+  navigator.clipboard.writeText(myId).then(()=>{
+    const b=document.getElementById('copyIdBtn');
+    b.textContent='Đã copy!';b.classList.add('copied');
+    setTimeout(()=>{b.textContent='Copy ID';b.classList.remove('copied');},2000);
+  });
+}
+function copyLink(){
+  const link=document.getElementById('shareLinkText').textContent;
+  navigator.clipboard.writeText(link).then(()=>{
+    const b=document.getElementById('copyLinkBtn');
+    b.textContent='Đã copy!';b.classList.add('copied');
+    setTimeout(()=>{b.textContent='Copy link';b.classList.remove('copied');},2000);
+    showToast('Gửi link này cho người kia!');
+  });
+}
+
+let toastTimer;
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove('show'),4000);
+}
+
+document.getElementById('peerIdInput').addEventListener('keydown',e=>{if(e.key==='Enter')startCall();});
+
+init();
+</script>
+</body>
+</html>
