@@ -237,6 +237,19 @@
     background:var(--marker);color:var(--ink);padding:2px 7px;border-radius:10px;margin-left:8px;
   }
   .prompt-q{font-family:'Fraunces',serif;font-size:1.05rem;font-weight:500;margin:0 0 10px;line-height:1.5;}
+  .structure-hint{
+    background:var(--paper-2);border:1px solid var(--sage);border-left:4px solid var(--sage);
+    border-radius:3px;margin:0 0 14px;padding:8px 14px;
+  }
+  .structure-hint summary{
+    cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:0.78rem;
+    color:var(--navy);font-weight:600;padding:4px 0;list-style:none;
+  }
+  .structure-hint summary::-webkit-details-marker{display:none;}
+  .structure-hint summary::before{content:'▸ ';}
+  .structure-hint[open] summary::before{content:'▾ ';}
+  .structure-hint-body{font-size:0.9rem;line-height:1.6;padding:6px 0 8px;color:var(--ink);}
+  .structure-hint-body code{background:var(--input-bg);padding:1px 5px;border-radius:3px;font-family:'JetBrains Mono',monospace;}
   .passage-box{
     background:var(--paper-2);border:1px dashed var(--line);
     padding:14px 16px;margin:10px 0 14px;font-size:0.95rem;line-height:1.65;
@@ -555,6 +568,13 @@
     <button type="button" class="mode-btn" data-mode="wordlist">📇 Từ vựng mới</button>
   </div>
 
+  <!-- Grammar mode toggle (practice / new grammar / review) -->
+  <div class="mode-toggle" id="grammarModeToggle" style="display:none;">
+    <button type="button" class="mode-btn active" data-mode="quiz">📝 Luyện tập</button>
+    <button type="button" class="mode-btn" data-mode="new">🆕 Ngữ pháp mới</button>
+    <button type="button" class="mode-btn" data-mode="review">🔄 Ôn tập</button>
+  </div>
+
   <!-- Grammar: weak-topic board -->
   <div class="gen-panel" id="grammarWeakBoard" style="display:none;">
     <div class="hint-line" style="margin-bottom:8px;">📊 ĐIỂM YẾU THEO CHỦ ĐIỂM NGỮ PHÁP</div>
@@ -566,10 +586,24 @@
     <div class="gen-row">
       <div class="field grow">
         <label>📖 Học lý thuyết trước khi luyện (chủ điểm ngữ pháp)</label>
-        <input type="text" id="lessonTopic" placeholder="vd: thì hiện tại hoàn thành, câu điều kiện loại 2, giới từ chỉ thời gian...">
+        <input type="text" id="lessonTopic" placeholder="vd: thì hiện tại hoàn thành, câu điều kiện loại 2, giới từ chỉ thời gian... để trống để AI tự đề xuất chủ điểm mới">
       </div>
       <button class="btn" id="genLessonBtn">📖 Tạo bài học</button>
     </div>
+  </div>
+
+  <!-- Grammar: review mode (mix weak topics into one batch) -->
+  <div class="gen-panel" id="grammarReviewPanel" style="display:none;">
+    <div class="gen-row">
+      <div class="field small">
+        <label>Số câu</label>
+        <input type="number" id="reviewCount" min="1" max="20" value="8">
+      </div>
+      <div class="field grow">
+        <span class="hint-line">Trộn các chủ điểm bạn đang yếu (xem bảng điểm ở trên) thành 1 bộ ôn tập đa dạng dạng câu hỏi.</span>
+      </div>
+    </div>
+    <button class="btn primary" id="genReviewBtn">🔄 Tạo bộ ôn tập</button>
   </div>
 
   <!-- Generation config (quiz mode) -->
@@ -830,6 +864,7 @@ let state = loadState();
 let currentSkill = 'vocabulary';
 let listeningMode = 'quiz'; // 'quiz' | 'passage'
 let vocabMode = 'quiz'; // 'quiz' | 'wordlist'
+let grammarMode = 'quiz'; // 'quiz' | 'new' | 'review'
 let passageContentType = 'story';
 let passageLength = 'medium';
 let currentPassage = null;
@@ -912,6 +947,9 @@ function renderGrammarWeakBoard(){
   el.querySelectorAll('.bank-item').forEach(item=>{
     const topic = item.getAttribute('data-topic');
     item.querySelector('[data-act="practice"]').addEventListener('click', ()=>{
+      grammarMode = 'quiz';
+      document.querySelectorAll('#grammarModeToggle .mode-btn').forEach(b=>b.classList.toggle('active', b.getAttribute('data-mode')==='quiz'));
+      applyPanelVisibility();
       document.getElementById('genTopic').value = topic;
       window.scrollTo({top: document.getElementById('quizGenPanel').offsetTop - 20, behavior:'smooth'});
     });
@@ -987,6 +1025,9 @@ function renderLesson(lesson){
       <span></span>
     </div>`);
   document.getElementById('lessonPracticeBtn').addEventListener('click', ()=>{
+    grammarMode = 'quiz';
+    document.querySelectorAll('#grammarModeToggle .mode-btn').forEach(b=>b.classList.toggle('active', b.getAttribute('data-mode')==='quiz'));
+    applyPanelVisibility();
     document.getElementById('genTopic').value = lesson.topic;
     generateBatch();
   });
@@ -1067,6 +1108,10 @@ function buildBatchPrompt(skill, level, topic, types, count){
     }
   }).join('\n');
 
+  const structureHintLine = (skill === 'grammar' || skill === 'writing')
+    ? `\nQUAN TRỌNG — HƯỚNG DẪN CẤU TRÚC: với MỌI câu hỏi, PHẢI cung cấp thêm trường "structureHint" là một đoạn hướng dẫn NGẮN GỌN bằng tiếng Việt (1-3 câu) nêu rõ CÔNG THỨC/CẤU TRÚC/FORM ngữ pháp cần áp dụng để làm đúng câu này (ví dụ: "Thì hiện tại hoàn thành: <code>S + have/has + V3/ed</code>. Dùng khi hành động bắt đầu trong quá khứ và còn liên quan đến hiện tại."). Được dùng thẻ <code> để làm nổi bật công thức. TUYỆT ĐỐI KHÔNG tiết lộ trực tiếp đáp án cụ thể của câu hỏi trong "structureHint" — chỉ nêu QUY TẮC CHUNG của chủ điểm ngữ pháp, không phải lời giải.`
+    : '';
+
   return `Bạn là hệ thống tạo bài tập tiếng Anh cho người Việt học tiếng Anh trình độ ${level}.
 ${weakLine}
 ${topicLine}
@@ -1075,11 +1120,11 @@ Hãy tạo ĐÚNG ${count} câu hỏi, phân bố xen kẽ đa dạng giữa cá
 ${typeInstructions}
 
 QUY TẮC NGÔN NGỮ: trường "question" LUÔN viết bằng TIẾNG ANH (đây là bài luyện tiếng Anh, học viên cần đọc hiểu đề bằng tiếng Anh). Chỉ riêng trường "explanation" (giải thích sau khi trả lời) viết bằng tiếng Việt để học viên dễ hiểu lỗi sai.
-
-QUY TẮC ĐỊNH DẠNG HTML: được phép dùng một số thẻ HTML đơn giản để nhấn mạnh trong các trường "question", "passage", "options", "explanation" khi hữu ích cho việc học (ví dụ: <b>, <strong>, <i>, <em>, <u>, <mark>, <code>, hoặc <span style="color:...;font-weight:...;"> với style inline đơn giản). TUYỆT ĐỐI KHÔNG dùng bất kỳ thẻ HTML nào trong "correctAnswers" và "words" — hai trường này PHẢI là văn bản thuần tuý vì được dùng để so khớp đáp án chính xác. Đối với "type" là dictation, listen_choice, hoặc shadowing, trường "sentence" cũng PHẢI là văn bản thuần tuý (không HTML) vì sẽ được đọc bằng giọng nói tổng hợp.
+${structureHintLine}
+QUY TẮC ĐỊNH DẠNG HTML: được phép dùng một số thẻ HTML đơn giản để nhấn mạnh trong các trường "question", "passage", "options", "explanation", "structureHint" khi hữu ích cho việc học (ví dụ: <b>, <strong>, <i>, <em>, <u>, <mark>, <code>, hoặc <span style="color:...;font-weight:...;"> với style inline đơn giản). TUYỆT ĐỐI KHÔNG dùng bất kỳ thẻ HTML nào trong "correctAnswers" và "words" — hai trường này PHẢI là văn bản thuần tuý vì được dùng để so khớp đáp án chính xác. Đối với "type" là dictation, listen_choice, hoặc shadowing, trường "sentence" cũng PHẢI là văn bản thuần tuý (không HTML) vì sẽ được đọc bằng giọng nói tổng hợp.
 
 Chỉ trả về JSON THUẦN là một MẢNG gồm ${count} object, không markdown, không chú thích, không văn bản nào khác ngoài JSON. Mỗi object theo schema chung:
-{"type":"...", "topic":"tên chủ điểm ngắn gọn (tiếng Anh)", "passage": "..."(chỉ dùng cho type reading/error_correction/translation_vi_en, nếu không dùng thì null), "sentence": "..."(hoặc null nếu không cần), "words": [...]( chỉ dùng cho type word_order, nếu không dùng thì null), "pairs": [...] (chỉ dùng cho type matching, mảng object {"left":"...","right":"..."}, nếu không dùng thì null), "question":"câu hỏi/yêu cầu bằng TIẾNG ANH", "options": [...] hoặc null, "correctAnswers": ["..."], "explanation":"giải thích ngắn gọn bằng tiếng Việt"}`;
+{"type":"...", "topic":"tên chủ điểm ngắn gọn (tiếng Anh)", "passage": "..."(chỉ dùng cho type reading/error_correction/translation_vi_en, nếu không dùng thì null), "sentence": "..."(hoặc null nếu không cần), "words": [...]( chỉ dùng cho type word_order, nếu không dùng thì null), "pairs": [...] (chỉ dùng cho type matching, mảng object {"left":"...","right":"..."}, nếu không dùng thì null), "structureHint": "..."(hướng dẫn công thức/cấu trúc ngắn gọn bằng tiếng Việt — CHỈ dùng khi skill là Grammar hoặc Writing, các trường hợp khác để null), "question":"câu hỏi/yêu cầu bằng TIẾNG ANH", "options": [...] hoặc null, "correctAnswers": ["..."], "explanation":"giải thích ngắn gọn bằng tiếng Việt"}`;
 }
 
 /* ---------------- Model fallback / rate-limit handling ---------------- */
@@ -1238,10 +1283,31 @@ function normalizeQuestion(q){
   if(q.type === 'error_spot' && !q.sentence && q.passage){
     q.sentence = q.passage;
   }
+  q.structureHint = (typeof q.structureHint === 'string') ? q.structureHint.trim() : '';
   return q;
 }
 
 /* ---------------- Batch generation ---------------- */
+/* ---------------- Grammar: "Ôn tập" mode — mix several weak topics into one batch ---------------- */
+async function generateGrammarReview(){
+  const rawTopics = Object.entries(state.skills.grammar.topics)
+    .sort((a,b)=>a[1].pKnown-b[1].pKnown)
+    .slice(0,4)
+    .map(([name])=>name);
+  if(!rawTopics.length){
+    alert('Chưa có đủ dữ liệu để ôn tập — hãy làm vài câu ở chế độ "📝 Luyện tập" trước đã, hệ thống cần biết bạn đang yếu ở chủ điểm nào.');
+    return;
+  }
+  let count = parseInt(document.getElementById('reviewCount').value, 10);
+  if(isNaN(count) || count < 1) count = 1;
+  if(count > 20) count = 20;
+  document.getElementById('reviewCount').value = count;
+
+  document.getElementById('genCount').value = count;
+  document.getElementById('genTopic').value = `ÔN TẬP — TRỘN ĐỀU các chủ điểm sau trong cùng 1 bộ (mỗi chủ điểm xuất hiện ít nhất 1 câu), ưu tiên chủ điểm yếu nhất trước: ${rawTopics.join(', ')}`;
+  await generateBatch();
+}
+
 async function generateBatch(){
   const countInput = document.getElementById('genCount');
   let count = parseInt(countInput.value, 10);
@@ -1898,6 +1964,12 @@ function renderExerciseAt(idx){
   const already = sessionAnswers[idx];
 
   let inner = `<div class="topic-tag">${escapeHtml(q.topic || currentBatch.skill)}<span class="type-badge">${escapeHtml(def.label)}</span></div>`;
+  if(q.structureHint){
+    inner += `<details class="structure-hint">
+      <summary>💡 Gợi ý cấu trúc / công thức</summary>
+      <div class="structure-hint-body">${sanitizeHtml(q.structureHint)}</div>
+    </details>`;
+  }
   if(q.passage){ inner += `<div class="passage-box">${sanitizeHtml(q.passage)}</div>`; }
   inner += `<p class="prompt-q">${sanitizeHtml(q.question || '')}</p>`;
 
@@ -2619,7 +2691,16 @@ function startPassagePlayback(text, rate, onProgress, onDone){
 function pausePassagePlayback(){ if(speechSynthesis.speaking) speechSynthesis.pause(); }
 function resumePassagePlayback(){ if(speechSynthesis.paused) speechSynthesis.resume(); }
 
+function prepareTextForSpeech(text){
+  return String(text||'')
+    .replace(/_+\d+_+/g, ' blank ')   // cloze-style blanks, e.g. "____1____"
+    .replace(/_{2,}/g, ' blank ')     // plain fill-in blanks, e.g. "____"
+    .replace(/<[^>]+>/g, ' ')         // strip any stray HTML tags
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 function speak(text){
+  text = prepareTextForSpeech(text);
   if(!text) return;
   if(!('speechSynthesis' in window)){ alert('Trình duyệt không hỗ trợ đọc giọng nói.'); return; }
   stopPassagePlayback();
@@ -2879,13 +2960,18 @@ function applyPanelVisibility(){
   const showPassage = isListening && listeningMode === 'passage';
   const showWordGen = isVocab && vocabMode === 'wordlist';
 
-  document.getElementById('quizGenPanel').style.display = (isWords || showPassage || showWordGen) ? 'none' : 'block';
+  const isGrammar = currentSkill === 'grammar' && !showPassage;
+  const gMode = isGrammar ? grammarMode : 'quiz';
+  const hideQuizForGrammarMode = isGrammar && gMode !== 'quiz';
+
+  document.getElementById('quizGenPanel').style.display = (isWords || showPassage || showWordGen || hideQuizForGrammarMode) ? 'none' : 'block';
   document.getElementById('passageGenPanel').style.display = showPassage ? 'block' : 'none';
   document.getElementById('wordGenPanel').style.display = showWordGen ? 'block' : 'none';
 
-  const isGrammar = currentSkill === 'grammar' && !showPassage;
-  document.getElementById('grammarWeakBoard').style.display = isGrammar ? 'block' : 'none';
-  document.getElementById('grammarLessonPanel').style.display = isGrammar ? 'block' : 'none';
+  document.getElementById('grammarModeToggle').style.display = isGrammar ? 'flex' : 'none';
+  document.getElementById('grammarWeakBoard').style.display = (isGrammar && gMode !== 'new') ? 'block' : 'none';
+  document.getElementById('grammarLessonPanel').style.display = (isGrammar && gMode === 'new') ? 'block' : 'none';
+  document.getElementById('grammarReviewPanel').style.display = (isGrammar && gMode === 'review') ? 'block' : 'none';
   document.getElementById('lessonBankSection').style.display = currentSkill === 'grammar' ? 'block' : 'none';
   if(isGrammar){ renderGrammarWeakBoard(); renderLessonBank(); }
 
@@ -2902,6 +2988,24 @@ function applyPanelVisibility(){
     renderWordsBrowser(document.getElementById('wordsSearchInput').value);
   }
 }
+
+document.querySelectorAll('#grammarModeToggle .mode-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('#grammarModeToggle .mode-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    grammarMode = btn.getAttribute('data-mode');
+    currentBatch = null;
+    document.getElementById('navStrip').style.display = 'none';
+    applyPanelVisibility();
+    if(grammarMode === 'new'){
+      setCardHTML(`<div class="empty-state">Nhập chủ điểm ngữ pháp bạn muốn học (hoặc để trống để AI tự đề xuất), rồi nhấn <strong>Tạo bài học</strong>. Sau khi đọc xong lý thuyết, bấm "Bắt đầu luyện tập chủ đề này" để chuyển sang làm bài ngay.</div>`);
+    } else if(grammarMode === 'review'){
+      setCardHTML(`<div class="empty-state">Nhấn <strong>Tạo bộ ôn tập</strong> để AI trộn các chủ điểm bạn đang yếu (xem bảng điểm ở trên) thành 1 bộ câu hỏi đa dạng.</div>`);
+    } else {
+      setCardHTML(`<div class="empty-state">Cấu hình số câu, chủ đề và dạng câu hỏi ở trên, rồi nhấn <strong>Tạo bộ câu hỏi</strong> để bắt đầu.</div>`);
+    }
+  });
+});
 
 document.querySelectorAll('#listeningModeToggle .mode-btn').forEach(btn=>{
   btn.addEventListener('click', ()=>{
@@ -2947,8 +3051,10 @@ document.querySelectorAll('.tab').forEach(tab=>{
     stopPassagePlayback();
     listeningMode = 'quiz';
     vocabMode = 'quiz';
+    grammarMode = 'quiz';
     document.querySelectorAll('#listeningModeToggle .mode-btn').forEach(b=>b.classList.toggle('active', b.getAttribute('data-mode')==='quiz'));
     document.querySelectorAll('#vocabModeToggle .mode-btn').forEach(b=>b.classList.toggle('active', b.getAttribute('data-mode')==='quiz'));
+    document.querySelectorAll('#grammarModeToggle .mode-btn').forEach(b=>b.classList.toggle('active', b.getAttribute('data-mode')==='quiz'));
     applyPanelVisibility();
     document.getElementById('navStrip').style.display = 'none';
     if(currentSkill !== 'words'){
@@ -2963,6 +3069,7 @@ document.getElementById('genBatchBtn').addEventListener('click', generateBatch);
 document.getElementById('genPassageBtn').addEventListener('click', generatePassage);
 document.getElementById('genWordSetBtn').addEventListener('click', generateWordSet);
 document.getElementById('genLessonBtn').addEventListener('click', generateLesson);
+document.getElementById('genReviewBtn').addEventListener('click', generateGrammarReview);
 
 const autoSpeakToggleEl = document.getElementById('autoSpeakToggle');
 autoSpeakToggleEl.checked = getAutoSpeak();
